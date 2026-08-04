@@ -1,4 +1,6 @@
-from ..configs.header_configs import SECTION_HEADERS,EXPERIENCE_HEADERS,COMPANY_KEYWORDS
+from ..configs.header_configs import SECTION_HEADERS,EXPERIENCE_HEADERS
+from ..configs.experience_configs import ROLE_KEYWORDS,COMPANY_KEYWORDS
+import re
 
 def extract_experience(text:str)->list[list[str]]|None:
     lines = text.split("\n")
@@ -24,3 +26,34 @@ def extract_experience(text:str)->list[list[str]]|None:
     if curr_experience:
        experience.append(curr_experience)
     return experience if experience else None
+
+def parse_experience(experience_block:list[list[str]])->list[dict]:
+    parsed_experience = []
+
+    for block in experience_block:
+
+        experience = {
+            "company":None,
+            "duration":None,
+            "role":None,
+            "description":[]
+        }
+        for line in block:
+            pattern = r"\d{4}\s*[-–]\s*(\d{4}|PRESENT)"
+            if any(word in line.upper() for word in COMPANY_KEYWORDS):
+               experience["company"] = line
+            elif any(word in line.upper() for word in ROLE_KEYWORDS):
+               experience["role"] = line
+            elif re.search(pattern,line):
+               experience["duration"] = line
+            elif line.startswith(("•", "-", "*")):
+               experience["description"].append(line)
+        parsed_experience.append(experience)
+    return parsed_experience if parsed_experience else None
+
+def process_experience(text:str)->list[dict]|None:
+    block = extract_experience(text)
+
+    if not block:
+        return None
+    return parse_experience(block)
