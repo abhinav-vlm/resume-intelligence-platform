@@ -1,0 +1,4 @@
+DURATION_PATTERNS = [
+    r"\d{4}\s*[-–]\s*(\d{4}|PRESENT)",
+    r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s*[-–]\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*,?\s*\d{4}",
+]

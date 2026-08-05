@@ -4,13 +4,7 @@ INSTITUTION_KEYWORDS = [
     "COLLEGE",
     "INSTITUTE",
     "UNIVERSITY",
-    "ACADEMY",
-    'SECONDARY',
-    'HIGHER SECONDARY',
-    'X',
-    'XII',
-    '12TH',
-    '10TH',
+    "ACADEMY"
 ]
 
 DEGREE_KEYWORDS = [
@@ -27,6 +21,10 @@ DEGREE_KEYWORDS = [
     "BSC",
     "MSC",
     "DIPLOMA",
+    'X',
+    'XII',
+    '12TH',
+    '10TH',
 ]
 
 MARKS = [

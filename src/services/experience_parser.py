@@ -1,5 +1,6 @@
 from ..configs.header_configs import SECTION_HEADERS,EXPERIENCE_HEADERS
-from ..configs.experience_configs import ROLE_KEYWORDS,COMPANY_KEYWORDS
+from ..configs.experience_configs import ROLE_KEYWORDS
+from ..utils.text_utils import is_duration,contains_keywords
 import re
 
 def extract_experience(text:str)->list[list[str]]|None:
@@ -7,21 +8,25 @@ def extract_experience(text:str)->list[list[str]]|None:
     inside_experience = False
     experience = []
     curr_experience = []
+    duration_found = False
 
-    for line in lines:
+    for i,line in enumerate(lines):
         line = line.strip()
         if not inside_experience:
-            if any(header in line.upper() for header in EXPERIENCE_HEADERS):
+            if contains_keywords(line,EXPERIENCE_HEADERS):
                 inside_experience = True
             continue
-        if line.upper() in SECTION_HEADERS:
+        if contains_keywords(line,SECTION_HEADERS):
             break
 
         if line:
-            if any(keyword in line.upper() for keyword in COMPANY_KEYWORDS):
-              if curr_experience:
-                 experience.append(curr_experience)
-              curr_experience = []
+            if is_duration(line):
+                if duration_found:
+                    new_company = curr_experience.pop()
+                    experience.append(curr_experience)
+                    curr_experience = [new_company]
+                else:
+                    duration_found = True
             curr_experience.append(line)
     if curr_experience:
        experience.append(curr_experience)
@@ -38,14 +43,12 @@ def parse_experience(experience_block:list[list[str]])->list[dict]:
             "role":None,
             "description":[]
         }
-        for line in block:
-            pattern = r"\d{4}\s*[-–]\s*(\d{4}|PRESENT)"
-            if any(word in line.upper() for word in COMPANY_KEYWORDS):
-               experience["company"] = line
-            elif any(word in line.upper() for word in ROLE_KEYWORDS):
+        for i,line in enumerate(block):
+            if contains_keywords(line,ROLE_KEYWORDS):
                experience["role"] = line
-            elif re.search(pattern,line):
+            elif is_duration(line):
                experience["duration"] = line
+               experience["company"] = block[i-1]
             elif line.startswith(("•", "-", "*")):
                experience["description"].append(line)
         parsed_experience.append(experience)

@@ -12,16 +12,3 @@ ROLE_KEYWORDS = [
     "SPECIALIST",
     "TECHNICIAN",
 ]
-
-COMPANY_KEYWORDS = [
-    "PVT",
-    "PRIVATE",
-    "LIMITED",
-    "LTD",
-    "LLP",
-    "INC",
-    "CORP",
-    "TECHNOLOGIES",
-    "SOLUTIONS",
-    "SYSTEMS",
-]
