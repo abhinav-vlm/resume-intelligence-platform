@@ -3,7 +3,7 @@ from ..configs.education_configs import INSTITUTION_KEYWORDS,DEGREE_KEYWORDS,MAR
 from ..utils.text_utils import is_duration,contains_keywords
 import re
 
-def extract_education(text:str)->list[list[str]]|None:
+def _extract_education(text:str)->list[list[str]]|None:
     lines = text.split("\n")
     education = []
     current_education = []
@@ -28,7 +28,7 @@ def extract_education(text:str)->list[list[str]]|None:
            
     return education if education else None
    
-def parse_education(education_blocks:list[list[str]])->list[dict]:
+def _parse_education(education_blocks:list[list[str]])->list[dict]:
    
    parsed_education = []
    for block in education_blocks:
@@ -52,8 +52,8 @@ def parse_education(education_blocks:list[list[str]])->list[dict]:
    return parsed_education if parsed_education else None
          
 def process_education(text:str)->list[dict]|None:
-   blocks = extract_education(text)
+   blocks = _extract_education(text)
 
    if not blocks:
       return None
-   return parse_education(blocks)
+   return _parse_education(blocks)

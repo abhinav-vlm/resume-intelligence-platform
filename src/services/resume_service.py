@@ -1,13 +1,14 @@
-from src.services.experience_parser import process_experience
 from fastapi import File,UploadFile
-from ..services.pdf_parser import extract_text
-from ..services.text_parser import clean_text
-from ..services.email_parser import extract_email
-from ..services.phone_parser import extract_phone
-from ..services.name_parser import extract_name
-from ..services.skills_parser import extract_skills
-from ..services.education_parser import process_education
-from ..services.experience_parser import process_experience
+from src.parsers.experience_parser import process_experience
+from ..parsers.pdf_parser import extract_text
+from ..parsers.text_parser import clean_text
+from ..parsers.email_parser import extract_email
+from ..parsers.phone_parser import extract_phone
+from ..parsers.name_parser import extract_name
+from ..parsers.skills_parser import extract_skills
+from ..parsers.education_parser import process_education
+from ..parsers.experience_parser import process_experience
+from ..parsers.project_parser import process_projects
 
 async def process_resume(file:UploadFile):
     if file.content_type != "application/pdf":
@@ -33,6 +34,8 @@ async def process_resume(file:UploadFile):
 
     experience = process_experience(cleaned_text)
 
+    projects = process_projects(cleaned_text)
+
     return{
         "filename":file.filename,
         'text':cleaned_text,
@@ -41,6 +44,7 @@ async def process_resume(file:UploadFile):
         "name":name,
         'education':education,
         'experience':experience,
+        'projects':projects,
         'skills':skills,
         "content_type":file.content_type,
         "message":"Resume received successfully"
