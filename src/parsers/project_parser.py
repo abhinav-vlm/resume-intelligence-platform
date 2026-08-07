@@ -1,12 +1,13 @@
 from ..configs.header_configs import SECTION_HEADERS,PROJECT_HEADERS
-from ..utils.text_utils import contains_keywords
+from ..configs.project_configs import PROJECT_METADATA_KEYWORDS
+from ..utils.text_utils import contains_keywords,_is_project_title
 
-def extract_projects(text:str)->list[list[str]]|None:
+def _extract_projects(text:str)->list[list[str]]|None:
     projects = []
     curr_project = []
     lines = text.split("\n")
     inside_projects = False
-    inside_description = False
+    previous_line_was_bullet = False
 
     for line in lines:
         line = line.strip()
@@ -17,22 +18,21 @@ def extract_projects(text:str)->list[list[str]]|None:
         if contains_keywords(line,SECTION_HEADERS):
             break
         if line:
-            if not inside_description:
-                if line.startswith(("•", "-", "*")):
-                    inside_description = True
-            if inside_description:
-                if not line.startswith(("•", "-", "*")):
+            if line.startswith(("•", "-", "*")):
+                    curr_project.append(line)
+                    previous_line_was_bullet = True
+            elif _is_project_title(line):
                     if curr_project:
                        projects.append(curr_project)
-                    curr_project = []
-                    inside_description = False
-            curr_project.append(line)
+                    curr_project = [line]
+            else:
+                curr_project[-1]+= " "+ line
     if curr_project:
        projects.append(curr_project)
-
+    print(repr(projects))
     return projects if projects else None
 
-def parse_projects(blocks:list[list[str]])->list[dict]|None:
+def _parse_projects(blocks:list[list[str]])->list[dict]|None:
     project_blocks = []
     for block in blocks:
         project = {
@@ -43,17 +43,17 @@ def parse_projects(blocks:list[list[str]])->list[dict]|None:
         for line in block:
             if line.startswith(("•", "-", "*")):
                 project['description'].append(line)
-            if project['project'] is None:
+            if _is_project_title(line):
                 project['project'] = line                
-            else:
+            elif contains_keywords(line,PROJECT_METADATA_KEYWORDS):
                 project['metadata'].append(line)
 
         project_blocks.append(project)
     return project_blocks if project_blocks else None
 
 def process_projects(text:str)->list[dict]|None:
-    blocks = extract_projects(text)
+    blocks = _extract_projects(text)
 
     if not blocks:
         return None
-    return parse_projects(blocks)
+    return _parse_projects(blocks)

@@ -1,0 +1,7 @@
+PROJECT_METADATA_KEYWORDS = [
+    'GITHUB',
+    'LIVE',
+    'LIVE DEMO',
+    'WEBSITE',
+    'REPOSITORY'
+]
