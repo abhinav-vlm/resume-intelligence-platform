@@ -1,0 +1,64 @@
+ABHINAV PRATAP SINGH
++91 9774913812
+apsbqt@gmail.com
+Abhinav Pratap Singh
+Blockmecoder
+
+EDUCATION :
+National Institute of Technology, Agartala
+2020 – 2024
+Bachelor of Technology in Electronics and Communication Engineering
+CGPA: 8.30
+
+B.P.S.S. Higher Secondary School, Tarabganj
+2019 – 2020
+Senior Secondary (XII)
+Percentage: 73
+
+B.P.S.S. Higher Secondary School, Tarabganj
+2017 – 2018
+Secondary (X)
+Percentage: 83
+
+EXPERIENCE
+Gosotek
+January - February, 2024
+Front-End Software Engineering (Remote Intern)
+• Utilized Latest technology in Next library to improve a web application with 15 percent visual inhancement and
+10 percent page loading.
+• The application named Manhunter Securities was created and improves upto 25 percent effeciency.
+• Tools and Technologies used: Javascript, ReactJS, NextJs, CSS
+
+PROJECTS :
+Bloger - A Full Stack Blog App | GitHub
+• Developed a scalable and efficient full-stack blog application enabling users to create and explore blogs with
+15 percent more efficiency.
+• Features user authentication, blog posting, editing, and user profile updates.
+• Tools and Technologies used : ReactJS, Node.js, Express.js, MongoDB, JavaScript, HTML, CSS
+
+Weather Sphere - A Real-time Weather App | GitHub
+• Developed a real-time dynamic website displaying current weather conditions at specified locations.
+• Utilizes OpenWeather API for fetching weather reports.
+• Dynamically changes background based on weather conditions.
+• Tools and Technologies used : ReactJS, Node.js, Express.js, JavaScript, HTML, CSS
+
+PrompTopic - An AI Prompting Tool | GitHub
+• Developed an open-source AI prompting tool, leveraging artificial intelligence to generate upto 35 percent
+more creative prompts.
+• Enabled users to discover and create imaginative prompts through AI-powered suggestions with 10 percent
+improvement in speed.
+• Facilitates sharing of generated prompts for creative idea exchange.
+• Tools and Technologies used : Next.js, MongoDB, Tailwind CSS, ReactJS
+
+TECHNICAL SKILLS :
+• Programming Languages : Python,C++, SQL, JavaScript, HTML, CSS, C
+• Web Development Frameworks : ReactJS, Express.JS, Next.JS, Jest, MongoDB
+• Technologies : Front-End Web Development, Test-Driven Development, Back-end Web Development
+• IT Constructs : DBMS, Data Structures and Algorithms, OOPS
+• Tools : VS Code, MATLAB, Git, GitHub, MS Excel, MySQL, Figma
+
+ACHIEVEMENTS :
+• JEE Mains Rank Holder : Ranked among the Top 2.1 percentile out of 1.2 million students in the
+JEE Mains examination, 2020.
+• Gold Medal in Sports Event : Ranked first in the Inter-Branch Physical Strength competition at
+Sports Fest 2022, NIT-A .

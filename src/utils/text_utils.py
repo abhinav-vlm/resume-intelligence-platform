@@ -25,3 +25,6 @@ def _is_project_title(line:str)->bool:
     if line.startswith(("•", "-", "*")):
         return False
     return True
+
+def _is_project_metadata(line: str, keywords: list[str]) -> bool:
+    return ":" in line and contains_keywords(line, keywords)
