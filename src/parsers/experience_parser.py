@@ -3,7 +3,7 @@ from ..configs.experience_configs import ROLE_KEYWORDS
 from ..utils.text_utils import is_duration,contains_keywords
 import re
 
-def extract_experience(text:str)->list[list[str]]|None:
+def _extract_experience(text:str)->list[list[str]]|None:
     lines = text.split("\n")
     inside_experience = False
     experience = []
@@ -32,7 +32,7 @@ def extract_experience(text:str)->list[list[str]]|None:
        experience.append(curr_experience)
     return experience if experience else None
 
-def parse_experience(experience_block:list[list[str]])->list[dict]:
+def _parse_experience(experience_block:list[list[str]])->list[dict]:
     parsed_experience = []
 
     for block in experience_block:
@@ -55,8 +55,8 @@ def parse_experience(experience_block:list[list[str]])->list[dict]:
     return parsed_experience if parsed_experience else None
 
 def process_experience(text:str)->list[dict]|None:
-    block = extract_experience(text)
+    block = _extract_experience(text)
 
     if not block:
         return None
-    return parse_experience(block)
+    return _parse_experience(block)

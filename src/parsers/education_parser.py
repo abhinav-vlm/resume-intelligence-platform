@@ -1,7 +1,6 @@
 from ..configs.header_configs import SECTION_HEADERS,EDUCATION_SECTION_HEADERS
 from ..configs.education_configs import INSTITUTION_KEYWORDS,DEGREE_KEYWORDS,MARKS
 from ..utils.text_utils import is_duration,contains_keywords
-import re
 
 def _extract_education(text:str)->list[list[str]]|None:
     lines = text.split("\n")

@@ -1,5 +1,4 @@
 from fastapi import File,UploadFile
-from src.parsers.experience_parser import process_experience
 from ..parsers.pdf_parser import extract_text
 from ..parsers.text_parser import clean_text
 from ..parsers.email_parser import extract_email

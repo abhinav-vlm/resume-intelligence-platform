@@ -1,6 +1,10 @@
 from ..configs.header_configs import SECTION_HEADERS,PROJECT_HEADERS
 from ..configs.project_configs import PROJECT_METADATA_KEYWORDS
-from ..utils.text_utils import contains_keywords,_is_project_title,_is_project_metadata
+from ..utils.text_utils import (
+    contains_keywords,
+    _is_project_title,
+    _is_project_metadata
+    )
 
 def _extract_projects(text:str)->list[list[str]]|None:
     projects = []
