@@ -33,3 +33,10 @@ DEGREE_ALIASES = {
     "msc": "M.Sc.",
     "m.sc.": "M.Sc.",
 }
+
+FIELD_ALIASES = {
+    "cse": "Computer Science and Engineering",
+    "ece": "Electronics and Communication Engineering",
+    "eee": "Electrical and Electronics Engineering",
+    "me": "Mechanical Engineering",
+}
