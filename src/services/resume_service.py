@@ -1,4 +1,4 @@
-from fastapi import File,UploadFile
+from fastapi import UploadFile
 from ..parsers.pdf_parser import extract_text
 from ..parsers.text_parser import clean_text
 from ..parsers.email_parser import extract_email
@@ -14,7 +14,7 @@ async def process_resume(file:UploadFile):
         return{
              "error":"Only PDF files allowed"
         }
-        
+    
     content = await file.read()
     
     text = extract_text(content)
