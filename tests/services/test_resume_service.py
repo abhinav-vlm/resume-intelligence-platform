@@ -2,8 +2,6 @@ from io import BytesIO
 from pathlib import Path
 import pytest
 from fastapi import UploadFile
-from src.normalizers.education_normalizer import normalize_education
-from src.normalizers.experience_normalizer import normalize_experience
 from src.services.resume_service import process_resume
 
 
@@ -39,7 +37,7 @@ async def test_process_resume():
     assert len(result["education"]) == 3
     assert len(result["experience"]) == 1
     assert len(result["projects"]) == 3
-    education = normalize_education(result["education"])[0]
+    education = result["education"][0]
 
     assert education["institution"] == 'National Institute of Technology, Agartala'
     assert education["degree"] == 'B.Tech'
@@ -50,7 +48,18 @@ async def test_process_resume():
     assert education["score_type"] == 'CGPA'
     assert result["skills"]
 
-    experience = normalize_experience(result["experience"])[0]
+    assert "Python" in result["skills"]
+    assert "C++" in result["skills"]
+    assert "SQL" in result["skills"]
+    assert "React" in result["skills"]
+    assert "Express.js" in result["skills"]
+    assert "Next.js" in result["skills"]
+    assert "GitHub" in result["skills"]
+    assert "ReactJS" not in result["skills"]
+    assert "Express.JS" not in result["skills"]
+    assert "Next.JS" not in result["skills"]
+
+    experience = result["experience"][0]
     assert experience["company"] == "Gosotek"
     assert experience["start_month"] == "January"
     assert experience["end_month"] == "February"
@@ -62,3 +71,34 @@ async def test_process_resume():
         "• The application named Manhunter Securities was created and improves upto 25 percent effeciency.",
         "• Tools and Technologies used: Javascript, ReactJS, NextJs, CSS"
       ]
+    assert result["projects"][0]["project"] == "Bloger - A Full Stack Blog App | GitHub"
+
+    assert result["projects"][0]["metadata"] == [
+       {
+        "type": "github",
+        "url": "https://github.com/Blockmecoder/Bloger"
+      }
+      ]
+
+    assert result["projects"][0]["description"] == [
+       "• Developed a scalable and efficient full-stack blog application enabling users to create and explore blogs with 15 percent more efficiency.",
+       "• Features user authentication, blog posting, editing, and user profile updates.",
+       "• Tools and Technologies used : ReactJS, Node.js, Express.js, MongoDB, JavaScript, HTML, CSS"
+     ]
+
+    assert result["projects"][1]["metadata"] == [
+      {
+        "type": "github",
+        "url": "https://github.com/Blockmecoder/CITY_APP"
+      }
+      ]
+
+    assert result["projects"][2]["metadata"] == [
+      {
+        "type": "github",
+        "url": "https://github.com/Blockmecoder/PrompTopic"
+      }
+      ]
+
+    assert "_bbox" not in result["projects"][0]
+    assert "_page" not in result["projects"][0]
