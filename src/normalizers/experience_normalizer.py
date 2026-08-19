@@ -1,24 +1,36 @@
 import re
 
-def normalize_experience(experience:list[dict])->list[dict]:
+def normalize_experience(experience: list[dict]) -> list[dict]:
     normalized_experience = []
 
     for entry in experience:
+        role = entry.get("role")
+
         normalize_entry = {
             "company": entry.get("company"),
-            "start_month" : None,
-            "end_month" : None,
-            "start_year" : None,
-            "end_year" : None,
-            "position" : entry.get('role'),
-            "description":entry.get('description') 
+            "start_month": None,
+            "end_month": None,
+            "start_year": None,
+            "end_year": None,
+            "position": _normalize_position(role),
+            "employment_type": _normalize_employment_type(role),
+            "description": entry.get("description"),
         }
 
-        normalize_entry["start_month"], normalize_entry["end_month"], normalize_entry["start_year"], normalize_entry["end_year"] = _normalize_duration(entry.get("duration"))
+        (
+            normalize_entry["start_month"],
+            normalize_entry["end_month"],
+            normalize_entry["start_year"],
+            normalize_entry["end_year"],
+        ) = _normalize_duration(entry.get("duration"))
+
         normalized_experience.append(normalize_entry)
+
     return normalized_experience
 
-def _normalize_duration(duration:str)->tuple[str|None,str|None,int|None,int|None]:
+def _normalize_duration(duration:str|None)->tuple[str|None,str|None,int|None,int|None]:
+    if not duration:
+        return None, None, None, None
     duration = duration.strip()
     months = re.findall(r"January|February|March|April|May|June|July|August|September|October|November|December",
       duration,
@@ -46,3 +58,42 @@ def _normalize_duration(duration:str)->tuple[str|None,str|None,int|None,int|None
 
     final_duration = (months[0],months[1],years[0],years[1])
     return final_duration
+
+def _normalize_employment_type(role: str) -> str | None:
+    if not role:
+        return None
+
+    role_lower = role.lower()
+
+    employment_types = {
+        "intern": r"\bintern(ship)?\b",
+        "contract": r"\b(contract|contractual)\b",
+        "part-time": r"\bpart[-\s]?time\b",
+        "full-time": r"\bfull[-\s]?time\b",
+        "freelance": r"\bfreelance\b",
+        "temporary": r"\btemporary\b",
+        "apprentice": r"\bapprentice(ship)?\b",
+        "trainee": r"\btrainee\b",
+    }
+
+    for employment_type, pattern in employment_types.items():
+        if re.search(pattern, role_lower):
+            return employment_type
+
+    return None
+
+def _normalize_position(role: str) -> str | None:
+    if not role:
+        return None
+
+    position = re.sub(
+        r"\b(remote|intern(ship)?|contract(ual)?|part[-\s]?time|full[-\s]?time|freelance|temporary|apprentice(ship)?|trainee)\b",
+        "",
+        role,
+        flags=re.IGNORECASE
+    )
+
+    position = re.sub(r"\([^)]*\)", "", position)
+    position = re.sub(r"\s+", " ", position).strip(" -,")
+
+    return position or None

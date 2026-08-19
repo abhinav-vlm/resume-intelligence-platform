@@ -3,7 +3,6 @@ from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
 from ..normalizers.education_normalizer import normalize_education
 from ..normalizers.experience_normalizer import normalize_experience
 from ..normalizers.skill_normalizer import normalize_skills
-from ..normalizers.project_normalizer import normalize_projects
 from ..parsers.text_parser import clean_text
 from ..parsers.email_parser import extract_email
 from ..parsers.phone_parser import extract_phone

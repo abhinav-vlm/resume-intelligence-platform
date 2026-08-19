@@ -65,7 +65,8 @@ async def test_process_resume():
     assert experience["end_month"] == "February"
     assert experience["start_year"] == 2024
     assert experience["end_year"] == 2024
-    assert experience["position"] == "Front-End Software Engineering (Remote Intern)"
+    assert result["experience"][0]["position"] == "Front-End Software Engineering"
+    assert result["experience"][0]["employment_type"] == "intern"
     assert experience["description"] == [
         "• Utilized Latest technology in Next library to improve a web application with 15 percent visual inhancement and",
         "• The application named Manhunter Securities was created and improves upto 25 percent effeciency.",
