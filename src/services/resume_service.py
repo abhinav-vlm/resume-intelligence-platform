@@ -1,5 +1,6 @@
 from fastapi import UploadFile
 from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
+from ..analyzers.completeness_analyzer import analyze_completeness
 from ..normalizers.education_normalizer import normalize_education
 from ..normalizers.experience_normalizer import normalize_experience
 from ..normalizers.skill_normalizer import normalize_skills
@@ -51,6 +52,19 @@ async def process_resume(file:UploadFile):
 
     if skills:
        skills = normalize_skills(skills)
+
+    resume_data = {
+      "name": name,
+      "email": email,
+      "phone": phone,
+      "linkedin": None,
+      "education": education,
+      "experience": experience,
+      "projects": projects,
+      "skills": skills,
+      }
+
+    completeness = analyze_completeness(resume_data)
        
     return{
         "filename":file.filename,
@@ -62,6 +76,7 @@ async def process_resume(file:UploadFile):
         'experience':experience,
         'projects':projects,
         'skills':skills,
+        "completeness":completeness,
         "content_type":file.content_type,
         "message":"Resume received successfully"
     }

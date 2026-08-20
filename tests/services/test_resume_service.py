@@ -103,3 +103,22 @@ async def test_process_resume():
 
     assert "_bbox" not in result["projects"][0]
     assert "_page" not in result["projects"][0]
+
+    completeness = result["completeness"]
+
+    assert completeness["required"] == {
+        "name": True,
+        "email": True,
+        "education": True,
+        "projects": True,
+        "skills": True,
+    }
+
+    assert completeness["recommended"] == {
+        "phone": True,
+        "linkedin": False,
+        "experience": True,
+    }
+
+    assert completeness["missing_required"] == []
+    assert completeness["missing_recommended"] == ["linkedin"]
