@@ -13,6 +13,7 @@ from ..parsers.education_parser import process_education
 from ..parsers.experience_parser import process_experience
 from ..parsers.project_parser import process_projects
 from ..normalizers.project_normalizer import normalize_projects
+from ..analyzers.quality_analyzer import analyze_quality
 
 async def process_resume(file:UploadFile):
     if file.content_type != "application/pdf":
@@ -65,6 +66,7 @@ async def process_resume(file:UploadFile):
       }
 
     completeness = analyze_completeness(resume_data)
+    quality = analyze_quality(resume_data)
        
     return{
         "filename":file.filename,
@@ -77,6 +79,7 @@ async def process_resume(file:UploadFile):
         'projects':projects,
         'skills':skills,
         "completeness":completeness,
+        "quality_check":quality,
         "content_type":file.content_type,
         "message":"Resume received successfully"
     }

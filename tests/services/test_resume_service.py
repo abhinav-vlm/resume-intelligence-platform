@@ -122,3 +122,40 @@ async def test_process_resume():
 
     assert completeness["missing_required"] == []
     assert completeness["missing_recommended"] == ["linkedin"]
+
+    quality = result["quality_check"]
+
+    assert "structure" in quality
+    assert "content" in quality
+    assert "consistency" in quality
+    assert "education" in quality["structure"]
+    assert "experience" in quality["structure"]
+    assert "projects" in quality["structure"]
+    assert "skills" in quality["structure"]
+
+    assert quality["structure"]["education"] == [
+    {"index": 0, "issues": []},
+    {"index": 1, "issues": []},
+    {"index": 2, "issues": []},
+    ]
+
+    assert quality["structure"]["experience"] == [
+    {"index": 0, "issues": []},
+    ]
+
+    assert quality["structure"]["projects"] == [
+    {"index": 0, "issues": []},
+    {"index": 1, "issues": []},
+    {"index": 2, "issues": []},
+    ]
+
+    assert quality["structure"]["skills"] == []
+
+    assert quality["content"] == {
+    "experience": [],
+    "projects": [],
+    }
+
+    assert quality["consistency"] == {
+    "issues": []
+    }
