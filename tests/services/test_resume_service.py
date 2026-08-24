@@ -133,29 +133,72 @@ async def test_process_resume():
     assert "projects" in quality["structure"]
     assert "skills" in quality["structure"]
 
+    quality = result["quality_check"]
+
     assert quality["structure"]["education"] == [
-    {"index": 0, "issues": []},
-    {"index": 1, "issues": []},
-    {"index": 2, "issues": []},
-    ]
+    {
+        "index": 0,
+        "issues": [],
+    },
+    {
+        "index": 1,
+        "issues": [],
+    },
+    {
+        "index": 2,
+        "issues": [],
+    },
+]
 
     assert quality["structure"]["experience"] == [
-    {"index": 0, "issues": []},
-    ]
+    {
+        "index": 0,
+        "issues": [],
+    }
+]
 
     assert quality["structure"]["projects"] == [
-    {"index": 0, "issues": []},
-    {"index": 1, "issues": []},
-    {"index": 2, "issues": []},
-    ]
+    {
+        "index": 0,
+        "issues": [],
+    },
+    {
+        "index": 1,
+        "issues": [],
+    },
+    {
+        "index": 2,
+        "issues": [],
+    },
+]
 
-    assert quality["structure"]["skills"] == []
-
-    assert quality["content"] == {
-    "experience": [],
-    "projects": [],
+    assert quality["content"]["experience"] == [
+    {
+        "index": 0,
+        "bullet_count": 3,
+        "content_length": 272,
+        "has_metrics": True,
     }
+]
 
-    assert quality["consistency"] == {
-    "issues": []
-    }
+    assert quality["content"]["projects"] == [
+    {
+        "index": 0,
+        "bullet_count": 3,
+        "content_length": 312,
+        "has_metrics": True,
+    },
+    {
+        "index": 1,
+        "bullet_count": 4,
+        "content_length": 301,
+        "has_metrics": False,
+    },
+    {
+        "index": 2,
+        "bullet_count": 4,
+        "content_length": 399,
+        "has_metrics": True,
+    },
+]
+    assert quality["consistency"]["issues"] == []

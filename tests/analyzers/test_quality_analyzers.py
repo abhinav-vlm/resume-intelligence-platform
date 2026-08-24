@@ -4,7 +4,11 @@ from src.analyzers.quality_analyzer import (
     _analyze_experience_structure,
     _analyze_projects_structure,
     _analyze_skills_structure,
+    _analyze_experience_content,
+    _analyze_projects_content,
+    _has_metrics,_analyze_education_consistency
 )
+
 
 def test_education_structure_complete():
     education = [
@@ -28,6 +32,7 @@ def test_education_structure_complete():
         }
     ]
 
+
 def test_education_structure_missing_degree():
     education = [
         {
@@ -46,6 +51,7 @@ def test_education_structure_missing_degree():
     assert result[0]["issues"] == [
         "missing_degree"
     ]
+
 
 def test_education_structure_multiple_missing_fields():
     education = [
@@ -67,6 +73,7 @@ def test_education_structure_multiple_missing_fields():
         "missing_degree",
         "missing_start_year",
     ]
+
 
 def test_experience_structure_complete():
     experience = [
@@ -115,6 +122,7 @@ def test_experience_structure_missing_fields():
         "missing_description",
     ]
 
+
 def test_project_structure_complete():
     projects = [
         {
@@ -135,6 +143,7 @@ def test_project_structure_complete():
         }
     ]
 
+
 def test_project_structure_missing_fields():
     projects = [
         {
@@ -151,6 +160,7 @@ def test_project_structure_missing_fields():
         "missing_description",
     ]
 
+
 def test_skills_structure_complete():
     skills = [
         "Python",
@@ -162,6 +172,7 @@ def test_skills_structure_complete():
 
     assert result == []
 
+
 def test_skills_structure_missing():
     skills = []
 
@@ -172,6 +183,7 @@ def test_skills_structure_missing():
             "issue": "missing_skills"
         }
     ]
+
 
 def test_analyze_structure():
     resume = {
@@ -187,3 +199,233 @@ def test_analyze_structure():
     assert result["structure"]["experience"] == []
     assert result["structure"]["projects"] == []
     assert result["structure"]["skills"] == []
+
+
+def test_experience_content():
+    experience = [
+        {
+            "description": [
+                "Built REST API",
+                "Improved latency by 30%",
+            ]
+        }
+    ]
+
+    result = _analyze_experience_content(experience)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 2,
+            "content_length": (
+                len("Built REST API")
+                + len("Improved latency by 30%")
+            ),
+            "has_metrics": True,
+        }
+    ]
+
+
+def test_experience_content_without_description():
+    experience = [
+        {}
+    ]
+
+    result = _analyze_experience_content(experience)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 0,
+            "content_length": 0,
+            "has_metrics": False,
+        }
+    ]
+
+
+def test_project_content():
+    projects = [
+        {
+            "description": [
+                "Built a scalable API",
+                "Improved response time by 40%",
+                "Handled 10,000 users",
+            ]
+        }
+    ]
+
+    result = _analyze_projects_content(projects)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 3,
+            "content_length": (
+                len("Built a scalable API")
+                + len("Improved response time by 40%")
+                + len("Handled 10,000 users")
+            ),
+            "has_metrics": True,
+        }
+    ]
+
+
+def test_project_content_without_description():
+    projects = [
+        {}
+    ]
+
+    result = _analyze_projects_content(projects)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 0,
+            "content_length": 0,
+            "has_metrics": False,
+        }
+    ]
+
+
+def test_project_content_without_metrics():
+    projects = [
+        {
+            "description": [
+                "Built a REST API using FastAPI",
+                "Added authentication and authorization",
+            ]
+        }
+    ]
+
+    result = _analyze_projects_content(projects)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 2,
+            "content_length": (
+                len("Built a REST API using FastAPI")
+                + len("Added authentication and authorization")
+            ),
+            "has_metrics": False,
+        }
+    ]
+
+
+def test_multiple_project_content():
+    projects = [
+        {
+            "description": [
+                "Built a web application",
+                "Improved performance by 25%",
+            ]
+        },
+        {
+            "description": [
+                "Created a REST API",
+            ]
+        },
+    ]
+
+    result = _analyze_projects_content(projects)
+
+    assert result == [
+        {
+            "index": 0,
+            "bullet_count": 2,
+            "content_length": (
+                len("Built a web application")
+                + len("Improved performance by 25%")
+            ),
+            "has_metrics": True,
+        },
+        {
+            "index": 1,
+            "bullet_count": 1,
+            "content_length": len("Created a REST API"),
+            "has_metrics": False,
+        },
+    ]
+
+
+def test_has_metrics_percentage():
+    description = [
+        "Improved application performance by 30%"
+    ]
+
+    assert _has_metrics(description) is True
+
+
+def test_has_metrics_percent_word():
+    description = [
+        "Reduced page loading time by 15 percent"
+    ]
+
+    assert _has_metrics(description) is True
+
+
+def test_has_metrics_multiplier():
+    description = [
+        "Improved throughput by 2x"
+    ]
+
+    assert _has_metrics(description) is True
+
+
+def test_has_metrics_number_with_comma():
+    description = [
+        "Served more than 10,000 users"
+    ]
+
+    assert _has_metrics(description) is True
+
+
+def test_has_metrics_without_metric():
+    description = [
+        "Built a scalable web application",
+        "Implemented user authentication",
+    ]
+
+    assert _has_metrics(description) is False
+
+
+def test_has_metrics_empty_description():
+    assert _has_metrics([]) is False
+
+
+def test_has_metrics_year_is_not_metric():
+    description = [
+        "Graduated from NIT Agartala in 2024"
+    ]
+
+    assert _has_metrics(description) is False
+
+def test_education_consistency_valid_duration():
+    education = [
+        {
+            "start_year": 2020,
+            "end_year": 2024,
+        }
+    ]
+
+    result = _analyze_education_consistency(education)
+
+    assert result == []
+
+def test_education_consistency_invalid_duration():
+    education = [
+        {
+            "start_year": 2024,
+            "end_year": 2020,
+        }
+    ]
+
+    result = _analyze_education_consistency(education)
+
+    assert result == [
+        {
+            "section": "education",
+            "index": 0,
+            "issue": "invalid_duration",
+        }
+    ]
