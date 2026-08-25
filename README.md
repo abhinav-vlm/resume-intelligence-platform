@@ -1,6 +1,6 @@
 # Resume Intelligence Platform ☀️
 
-Phase 1 of the Resume Intelligence Platform is complete! We have built the core resume ingestion + deterministic extraction layer, including section parsers, generic text utilities, and service orchestration with comprehensive testing.
+Phase 1, Phase 2, and Phase 3 (Day 4: Resume Quality & Analysis) of the Resume Intelligence Platform are complete! We have built the core ingestion + deterministic extraction layer, an entity normalization engine, and an ATS-oriented resume quality and formatting analyzer, all fully orchestrated with 139 passing unit and integration tests.
 
 The 8-phase roadmap below outlines the architectural evolution from structured extraction to a production MLOps deployment.
 
@@ -16,17 +16,17 @@ Resume Ingestion & Structured Extraction
              ▼
 PHASE 2
 Resume Intelligence & Normalization
-░░░░░░░░░░░░░░░░░░░░   0%
+████████████████████ 100% ✅
              │
              ▼
 PHASE 3
-Resume Quality & Analysis
-░░░░░░░░░░░░░░░░░░░░   0%
+Resume Quality & Analysis (P3D4)
+████████████████████ 100% ✅
              │
              ▼
 PHASE 4
 Job Description Intelligence
-░░░░░░░░░░░░░░░░░░░░   0%
+░░░░░░░░░░░░░░░░░░░░   0% ⏳ (Next)
              │
              ▼
 PHASE 5
@@ -65,19 +65,16 @@ PDF / Resume → PDF Extraction → Text Cleaning → Deterministic Extraction
 * **Sections:** Education, Experience, Projects, Skills
 
 **Engineering Work Covered:**
-* PDF parsing
-* Text cleaning
-* Section detection
-* Keyword/config separation
-* Generic `text_utils`
-* Education parser
-* Experience parser
-* Project parser
-* Skills parser
-* Service orchestration
-* Unit tests & regression tests
-* Real-resume fixture & async integration test with `pytest-asyncio`
-* Git workflow & PyPI package setup
+* PDF parsing ([pdf_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/pdf_parser.py))
+* Text cleaning ([text_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/text_parser.py))
+* Section detection & extraction
+* Name, Email, Phone parsers ([name_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/name_parser.py), [email_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/email_parser.py), [phone_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/phone_parser.py))
+* Education parser ([education_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/education_parser.py))
+* Experience parser ([experience_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py))
+* Project parser ([project_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py))
+* Skills parser ([skills_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/skills_parser.py))
+* Service orchestration ([resume_service.py](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py))
+* Real-resume fixture & integration tests with `pytest-asyncio`
 
 **Phase 1 Output Schema:**
 ```json
@@ -94,14 +91,14 @@ PDF / Resume → PDF Extraction → Text Cleaning → Deterministic Extraction
 
 ---
 
-### Phase 2: Resume Intelligence & Normalization ⏳
+### Phase 2: Resume Intelligence & Normalization ✅
 
-Transforms raw extraction into canonical representations:
-* **Skill Normalization:** e.g., `Python Programming` → `Python`, `React.js` → `React`
-* **Role Normalization:** Standardized job categories (e.g., `ML Engineer`, `Machine Learning Engineer` → canonical role)
-* **Company Normalization:** Anchor & keyword resolution
-* **Education Normalization:** `B.Tech`, `Bachelor of Technology` → canonical degree representation
-* **Duration Normalization:** Dates & ranges to common representation
+Transforms raw extraction into canonical representations across all entities:
+* **Skill Normalization:** ([skill_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/skill_normalizer.py)) e.g., `Python Programming` → `Python`, `React.js` → `React`
+* **Role & Experience Normalization:** ([experience_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py)) Job title canonicalization, company anchor resolution, start/end year bounds
+* **Education Normalization:** ([education_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/education_normalizer.py)) Standardizes degrees (`B.Tech`, `Bachelor of Technology` → canonical degree representation) and institution names
+* **Project Normalization:** ([project_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/project_normalizer.py)) Standardizes project metadata, link extraction, and description formatting
+* **Pipeline Integration:** ([resume_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/resume_normalizer.py)) End-to-end normalization pipeline
 
 ```
 RAW EXTRACTION → NORMALIZED RESUME
@@ -109,16 +106,18 @@ RAW EXTRACTION → NORMALIZED RESUME
 
 ---
 
-### Phase 3: Resume Quality & Analysis ⏳
+### Phase 3: Resume Quality & Analysis (P3D4) ✅
 
-Actionable ATS-oriented evaluation:
-* **Completeness:** Section checks (missing email/LinkedIn, skills, project presence)
-* **Resume Quality:** Weak project descriptions, excessive length, missing metrics, duplicate skills
-* **ATS-Oriented Analysis:**
-  * Section completeness
-  * Keyword coverage
-  * Formatting risks
-  * Skill & experience quality
+Actionable ATS-oriented evaluation and quality checks:
+* **Completeness Analysis:** ([completeness_analyzer.py](file:///d:/Projects/resume-intelligence-platform/src/analyzers/completeness_analyzer.py)) Evaluates required vs recommended profile fields and identifies missing contact or section data
+* **Resume Quality Analysis:** ([quality_analyzer.py](file:///d:/Projects/resume-intelligence-platform/src/analyzers/quality_analyzer.py))
+  * **Structure:** Missing structural elements across education, experience, projects, skills
+  * **Content Quality:** Quantified metric detection (regex patterns for percentages, figures, multiples), bullet count, content length evaluation
+  * **Consistency:** Timeline chronological validation (detects `start_year > end_year` invalid duration anomalies)
+* **Formatting Risk Analysis:** ([formatting_analyzer.py](file:///d:/Projects/resume-intelligence-platform/src/analyzers/formatting_analyzer.py))
+  * **Bullet Formatting:** Bullet marker consistency checks (`•`, `-`, `*`) across experience and project descriptions
+  * **Header Formatting:** Section header detection and trailing colon usage consistency
+* **Integrated Service Layer:** ([resume_service.py](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py)) Unified API pipeline returning extraction, normalization, completeness score, quality checks, and formatting risks.
 
 ---
 
@@ -192,12 +191,12 @@ RESUME INTELLIGENCE PLATFORM
             │
             ▼
  ┌──────────────────────┐
- │ Normalization        │
+ │ Normalization (P2)   │ ✅
  └──────────┬───────────┘
             │
             ▼
  ┌──────────────────────┐
- │ Resume Analysis      │
+ │ Resume Analysis (P3) │ ✅ (Completeness, Quality, Formatting)
  └──────────┬───────────┘
             │
  ┌──────────┴───────────┐
@@ -206,25 +205,25 @@ Resume Intelligence   Job Intelligence
  │                      │
  └──────────┬───────────┘
             ▼
-  ┌─────────────────┐
-  │ Matching Engine │
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │ ML/NLP Layer    │
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │ FastAPI Backend │
-  └────────┬────────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │ Docker + Cloud  │
-  │ + MLOps         │
-  └────────┬────────┘
+   ┌─────────────────┐
+   │ Matching Engine │
+   └────────┬────────┘
+            │
+            ▼
+   ┌─────────────────┐
+   │ ML/NLP Layer    │
+   └────────┬────────┘
+            │
+            ▼
+   ┌─────────────────┐
+   │ FastAPI Backend │
+   └────────┬────────┘
+            │
+            ▼
+   ┌─────────────────┐
+   │ Docker + Cloud  │
+   │ + MLOps         │
+   └────────┬────────┘
 ```
 
 ---
@@ -233,13 +232,13 @@ Resume Intelligence   Job Intelligence
 
 ```
 Phase 1  ████████████████████ 100% ✅
-Phase 2  ░░░░░░░░░░░░░░░░░░░░   0%
-Phase 3  ░░░░░░░░░░░░░░░░░░░░   0%
-Phase 4  ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 2  ████████████████████ 100% ✅
+Phase 3  ████████████████████ 100% ✅ (P3D4 Complete)
+Phase 4  ░░░░░░░░░░░░░░░░░░░░   0% ⏳ Next Milestone
 Phase 5  ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 6  ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 7  ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8  ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
-Our immediate next milestone is **Phase 2: Normalization**.
+Our immediate next milestone is **Phase 4: Job Description Intelligence**.
