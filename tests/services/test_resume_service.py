@@ -134,7 +134,10 @@ async def test_process_resume():
     assert "skills" in quality["structure"]
 
     quality = result["quality_check"]
+    formatting = result["formatting_check"]
 
+    assert "bullets" in formatting
+    assert "section_headers" in formatting
     assert quality["structure"]["education"] == [
     {
         "index": 0,
@@ -202,3 +205,27 @@ async def test_process_resume():
     },
 ]
     assert quality["consistency"]["issues"] == []
+    assert formatting["bullets"] == [
+    {
+        "index": 0,
+        "issues": [],
+    },
+    {
+        "index": 1,
+        "issues": [],
+    },
+    {
+        "index": 2,
+        "issues": [],
+    },
+    {
+        "index": 3,
+        "issues": [],
+    },
+    ]
+    assert formatting["section_headers"] == [
+    {
+        "header": "EXPERIENCE",
+        "issue": "inconsistent_header_format",
+    }
+    ]

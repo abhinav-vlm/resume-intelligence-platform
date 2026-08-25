@@ -14,6 +14,7 @@ from ..parsers.experience_parser import process_experience
 from ..parsers.project_parser import process_projects
 from ..normalizers.project_normalizer import normalize_projects
 from ..analyzers.quality_analyzer import analyze_quality
+from ..analyzers.formatting_analyzer import analyze_formatting
 
 async def process_resume(file:UploadFile):
     if file.content_type != "application/pdf":
@@ -55,19 +56,20 @@ async def process_resume(file:UploadFile):
        skills = normalize_skills(skills)
 
     resume_data = {
-      "name": name,
-      "email": email,
-      "phone": phone,
-      "linkedin": None,
-      "education": education,
-      "experience": experience,
-      "projects": projects,
-      "skills": skills,
-      }
+    "name": name,
+    "email": email,
+    "phone": phone,
+    "linkedin": None,
+    "education": education,
+    "experience": experience,
+    "projects": projects,
+    "skills": skills,
+    "text": cleaned_text,
+     }
 
     completeness = analyze_completeness(resume_data)
     quality = analyze_quality(resume_data)
-       
+    formatting = analyze_formatting(resume_data)
     return{
         "filename":file.filename,
         'text':cleaned_text,
@@ -80,6 +82,7 @@ async def process_resume(file:UploadFile):
         'skills':skills,
         "completeness":completeness,
         "quality_check":quality,
+        "formatting_check": formatting,
         "content_type":file.content_type,
         "message":"Resume received successfully"
     }
