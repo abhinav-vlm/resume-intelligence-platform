@@ -8,6 +8,6 @@ router = APIRouter()
 def home():
     return {"message":"Resume Intelligence Platform API"}
 
-@router.post("/upload")
+@router.post("/upload_resume")
 async def upload_resume(file:UploadFile=File(...)):
     return await process_resume(file)
