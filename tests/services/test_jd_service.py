@@ -15,12 +15,24 @@ async def test_process_jd_text():
 
     assert result["content"] == text
 
-    assert result["jd"] == [
-    "Backend Engineer",
-    "Python",
-    "FastAPI",
-    ]
-
+    assert result["jd"] == {
+        "role": None,
+        "experience": None,
+        "skill_requirements": [
+            {
+                "line": "Backend Engineer",
+                "requirement": "unknown",
+            },
+            {
+                "line": "Python",
+                "requirement": "unknown",
+            },
+            {
+                "line": "FastAPI",
+                "requirement": "unknown",
+            },
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -39,8 +51,21 @@ async def test_process_jd_file():
     # supports decoding the uploaded bytes.
     assert result["content"] == "Backend Engineer\nPython\nFastAPI"
 
-    assert result["jd"] == [
-    "Backend Engineer",
-    "Python",
-    "FastAPI",
-    ]
+    assert result["jd"] == {
+    "role": None,
+    "experience": None,
+    "skill_requirements": [
+        {
+            "line": "Backend Engineer",
+            "requirement": "unknown",
+        },
+        {
+            "line": "Python",
+            "requirement": "unknown",
+        },
+        {
+            "line": "FastAPI",
+            "requirement": "unknown",
+        },
+    ],
+}
