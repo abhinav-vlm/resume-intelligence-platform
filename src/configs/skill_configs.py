@@ -1,0 +1,18 @@
+KNOWN_SKILLS = {
+    "Python",
+    "C",
+    "C++",
+    "Java",
+    "JavaScript",
+    "TypeScript",
+    "SQL",
+    "MySQL",
+    "React",
+    "FastAPI",
+    "Django",
+    "Flask",
+    "Node.js",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+}

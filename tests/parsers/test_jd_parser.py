@@ -4,6 +4,8 @@ from src.parsers.jd_parser import (
     _extract_experience,
     _classify_skill_requirement,
     parse_jd,
+    _resolve_skill_overlaps,
+    _extract_skills
 )
 
 def test_extract_jd():
@@ -214,4 +216,105 @@ def test_parse_jd():
             "line": "Nice to have: Docker",
             "requirement": "optional",
         },
+    ]
+
+def test_extract_skills_from_sentence():
+    jd = [
+        "We need a Python developer with FastAPI experience.",
+        "Strong SQL knowledge is required.",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["Python", "FastAPI", "SQL"]
+
+def test_extract_skills_case_insensitive():
+    jd = [
+        "Experience with PYTHON and fastapi.",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["Python", "FastAPI"]
+
+def test_extract_skills_deduplicates():
+    jd = [
+        "Python developer.",
+        "Strong Python experience.",
+        "Python is required.",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["Python"]
+
+def test_extract_unknown_skill_is_ignored():
+    jd = [
+        "Experience with stakeholder management.",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == []
+
+def test_extract_skills_does_not_match_partial_word():
+    jd = [
+        "Pythonic programming practices are useful.",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == []
+
+def test_extract_multiple_skills_from_one_line():
+    jd = [
+        "Build backend services using Python, FastAPI, SQL and Docker."
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == [
+        "Python",
+        "FastAPI",
+        "SQL",
+        "Docker",
+    ]
+
+def test_extract_cpp_without_extracting_c():
+    jd = [
+        "Strong C++ development experience."
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["C++"]
+
+def test_extract_mysql_without_extracting_sql():
+    jd = [
+        "Experience with MySQL databases."
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["MySQL"]
+
+def test_resolve_overlapping_skills_keeps_longer_match():
+    matches = [
+        {"skill": "C++", "line": 0, "start": 0, "end": 3},
+        {"skill": "C", "line": 0, "start": 0, "end": 1},
+    ]
+
+    assert _resolve_skill_overlaps(matches) == [
+        {"skill": "C++", "line": 0, "start": 0, "end": 3},
+    ]
+
+def test_resolve_non_overlapping_skills():
+    matches = [
+        {"skill": "Python", "line": 0, "start": 0, "end": 6},
+        {"skill": "FastAPI", "line": 0, "start": 11, "end": 18},
+    ]
+
+    assert _resolve_skill_overlaps(matches) == [
+        {"skill": "Python", "line": 0, "start": 0, "end": 6},
+        {"skill": "FastAPI", "line": 0, "start": 11, "end": 18},
     ]
