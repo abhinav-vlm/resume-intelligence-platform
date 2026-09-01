@@ -1,7 +1,43 @@
 import re
-from ..configs.jd_configs import ROLE_KEYWORDS,REQUIRED_SKILL_KEYWORDS,OPTIONAL_SKILL_KEYWORDS
+from ..configs.jd_configs import ROLE_KEYWORDS,REQUIRED_SKILL_KEYWORDS,OPTIONAL_SKILL_KEYWORDS,NOISE_SECTION_HEADERS,JD_SECTION_HEADERS
 from ..configs.skill_configs import KNOWN_SKILLS
 
+# A. Case-insensitive headers
+# B. JD with no headers
+# C. Noise section at the end
+# D. "experience with Python" wording
+# E. multiple skill + YOE on one line
+# F. unknown skills must survive
+# G. duplicate skills
+# H. C vs C++
+# I. MySQL vs SQL
+
+
+SKILL_PATTERN = "|".join(
+    re.escape(skill)
+    for skill in KNOWN_SKILLS
+)
+
+SKILL_YOE_PATTERN = re.compile(
+    rf"""
+    (?:
+        (?P<years_1>\d+)\+?
+        \s+(?:years?|yrs?)
+        \s+(?:of\s+)?
+        (?P<skill_1>{SKILL_PATTERN})
+        \s+experience
+    )
+    |
+    (?:
+        (?P<years_2>\d+)\+?
+        \s+(?:years?|yrs?)
+        \s+of\s+experience
+        \s+(?:with\s+)?
+        (?P<skill_2>{SKILL_PATTERN})
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 YOE_PATTERN = re.compile(
      r"\b(?:minimum|at\s+least)?\s*(\d+)\+?\s+(?:years?|yrs?)\s+(?:of\s+)?(?:professional\s+)?(?:industry\s+)?experience\b"
@@ -50,6 +86,41 @@ def _extract_experience(jd: list[str]) -> int | None:
 
     return None
 
+def _extract_skill_specific_experience(jd: list[str]) -> list[dict]:
+    skill_yoe = []
+
+    for line in jd:
+        matches = re.finditer(SKILL_YOE_PATTERN, line)
+
+        for match in matches:
+            years = match.group("years_1") or match.group("years_2")
+            skill = match.group("skill_1") or match.group("skill_2")
+
+            skill_yoe.append({
+                "skill": skill,
+                "experience": int(years),
+            })
+
+    return skill_yoe
+
+def _filter_noise_sections(jd:list[str])->list[str]:
+    clean_jd = []
+    noise_mode = False
+    for line in jd:
+        normalized_line = line.lower().strip().rstrip(":")
+        if normalized_line in NOISE_SECTION_HEADERS:
+            noise_mode =True
+            continue 
+        if noise_mode:
+           if normalized_line in JD_SECTION_HEADERS:
+              noise_mode = False
+              clean_jd.append(line)
+           else:
+              continue
+        else:
+            clean_jd.append(line)
+    return clean_jd
+
 def _classify_skill_requirement(line: str) -> str:
     normalized_line = line.lower().strip()
 
@@ -92,6 +163,7 @@ def _extract_skills(jd: list[str]) -> list[str]:
               seen.add(skill)
 
     return skills
+
 def _resolve_skill_overlaps(matches: list[dict]) -> list[dict]:
     resolved = []
 
@@ -116,10 +188,12 @@ def _resolve_skill_overlaps(matches: list[dict]) -> list[dict]:
     
 def parse_jd(text: str) -> dict:
     jd = _extract_jd(text)
-
+    jd = _filter_noise_sections(jd)
     return {
         "role": _extract_role(jd),
         "experience": _extract_experience(jd),
+        "skills": _extract_skills(jd),
+        "skill_specific_experience":_extract_skill_specific_experience(jd),
         "skill_requirements": [
             {
                 "line": line,
@@ -128,3 +202,4 @@ def parse_jd(text: str) -> dict:
             for line in jd
         ],
     }
+

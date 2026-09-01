@@ -3,7 +3,9 @@ from src.parsers.jd_parser import (
     _extract_jd,
     _extract_experience,
     _classify_skill_requirement,
+    _extract_skill_specific_experience,
     parse_jd,
+    _filter_noise_sections,
     _resolve_skill_overlaps,
     _extract_skills
 )
@@ -317,4 +319,179 @@ def test_resolve_non_overlapping_skills():
     assert _resolve_skill_overlaps(matches) == [
         {"skill": "Python", "line": 0, "start": 0, "end": 6},
         {"skill": "FastAPI", "line": 0, "start": 11, "end": 18},
+    ]
+
+def test_parse_jd_extracts_skills():
+    jd = """
+    Role: Backend Engineer
+    We need someone experienced with Python and FastAPI.
+    SQL knowledge is required.
+    """
+
+    result = parse_jd(jd)
+
+    assert result["skills"] == [
+        "Python",
+        "FastAPI",
+        "SQL",
+    ]
+def test_extract_skill_specific_experience():
+    jd = [
+        "3 years of Python experience",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {
+            "skill": "Python",
+            "experience": 3,
+        }
+    ]
+def test_extract_multiple_skill_specific_experience():
+    jd = [
+        "3 years of Python experience and 2 years of AWS experience"
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {"skill": "Python", "experience": 3},
+        {"skill": "AWS", "experience": 2},
+    ]
+
+def test_extract_skill_specific_experience_plus_years():
+    jd = [
+        "5+ years of FastAPI experience",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {
+            "skill": "FastAPI",
+            "experience": 5,
+        }
+    ]
+
+def test_extract_skill_specific_experience_with_skill():
+    jd = [
+        "4 years of experience with Python",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {
+            "skill": "Python",
+            "experience": 4,
+        }
+    ]
+
+def test_extract_skill_specific_experience_multiple_lines():
+    jd = [
+        "3 years of Python experience",
+        "5+ years of AWS experience",
+        "2 years of experience with FastAPI",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {
+            "skill": "Python",
+            "experience": 3,
+        },
+        {
+            "skill": "AWS",
+            "experience": 5,
+        },
+        {
+            "skill": "FastAPI",
+            "experience": 2,
+        },
+    ]
+
+def test_extract_skill_specific_experience_unknown_skill():
+    jd = [
+        "4 years of stakeholder management experience",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == []
+
+def test_filter_noise_section():
+    jd = [
+        "Role: Backend Engineer",
+        "About the company",
+        "We build amazing products.",
+        "Python",
+        "Required skills:",
+    ]
+
+    result = _filter_noise_sections(jd)
+
+    assert result == [
+        "Role: Backend Engineer",
+        "Required skills:",
+    ]
+
+def test_filter_noise_section_case_insensitive():
+    jd = [
+        "Role: Backend Engineer",
+        "ABOUT THE COMPANY",
+        "We build amazing products.",
+        "Required skills:",
+        "Python",
+    ]
+
+    result = _filter_noise_sections(jd)
+
+    assert result == [
+        "Role: Backend Engineer",
+        "Required skills:",
+        "Python",
+    ]
+
+def test_filter_noise_section_at_end():
+    jd = [
+        "Role: Backend Engineer",
+        "Python",
+        "About the company",
+        "We build amazing products.",
+        "We have offices globally",
+    ]
+
+    result = _filter_noise_sections(jd)
+
+    assert result == [
+        "Role: Backend Engineer",
+        "Python",
+    ]
+
+def test_parse_jd_filters_noise_and_extracts_data():
+    text = """
+    Role: Backend Engineer
+    3+ years of experience
+    3 years of Python experience
+    2 years of AWS experience
+
+    About the company
+    We build amazing products.
+    Python is mentioned here but should be ignored.
+
+    Required skills:
+    Python
+    AWS
+    """
+
+    result = parse_jd(text)
+
+    assert result["role"] == "Backend Engineer"
+    assert result["experience"] == 3
+
+    assert result["skills"] == [
+        "Python",
+        "AWS",
     ]
