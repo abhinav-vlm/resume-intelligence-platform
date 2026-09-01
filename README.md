@@ -1,6 +1,6 @@
 # Resume Intelligence Platform ☀️
 
-Phase 1, Phase 2, and Phase 3 (Day 4: Resume Quality & Analysis) of the Resume Intelligence Platform are complete! We have built the core ingestion + deterministic extraction layer, an entity normalization engine, and an ATS-oriented resume quality and formatting analyzer, all fully orchestrated with 139 passing unit and integration tests.
+Phase 1, Phase 2, Phase 3, and Phase 4 (Day 4: Job Description Intelligence) of the Resume Intelligence Platform are complete! We have built the core ingestion + deterministic extraction layer, an entity normalization engine, an ATS-oriented resume quality analyzer, and a Job Description intelligence parser (role, YOE, skills, requirement classification, and noise filtering), all fully orchestrated with 181 passing unit and integration tests.
 
 The 8-phase roadmap below outlines the architectural evolution from structured extraction to a production MLOps deployment.
 
@@ -25,13 +25,13 @@ Resume Quality & Analysis (P3D4)
              │
              ▼
 PHASE 4
-Job Description Intelligence
-░░░░░░░░░░░░░░░░░░░░   0% ⏳ (Next)
+Job Description Intelligence (P4D4)
+████████████████████ 100% ✅
              │
              ▼
 PHASE 5
 Resume ↔ JD Matching
-░░░░░░░░░░░░░░░░░░░░   0%
+░░░░░░░░░░░░░░░░░░░░   0% ⏳ (Next)
              │
              ▼
 PHASE 6
@@ -91,7 +91,7 @@ PDF / Resume → PDF Extraction → Text Cleaning → Deterministic Extraction
 
 ---
 
-### Phase 2: Resume Intelligence & Normalization ✅
+## Phase 2: Resume Intelligence & Normalization ✅
 
 Transforms raw extraction into canonical representations across all entities:
 * **Skill Normalization:** ([skill_normalizer.py](file:///d:/Projects/resume-intelligence-platform/src/normalizers/skill_normalizer.py)) e.g., `Python Programming` → `Python`, `React.js` → `React`
@@ -106,7 +106,7 @@ RAW EXTRACTION → NORMALIZED RESUME
 
 ---
 
-### Phase 3: Resume Quality & Analysis (P3D4) ✅
+## Phase 3: Resume Quality & Analysis (P3D4) ✅
 
 Actionable ATS-oriented evaluation and quality checks:
 * **Completeness Analysis:** ([completeness_analyzer.py](file:///d:/Projects/resume-intelligence-platform/src/analyzers/completeness_analyzer.py)) Evaluates required vs recommended profile fields and identifies missing contact or section data
@@ -121,14 +121,34 @@ Actionable ATS-oriented evaluation and quality checks:
 
 ---
 
-### Phase 4: Job Description Intelligence ⏳
+## Phase 4: Job Description Intelligence (P4D4) ✅
 
-Structured parsing of Job Descriptions (JD):
-* **Extract:** Required skills, Preferred skills, Role, Experience level, Education requirements, Responsibilities, Tools & domain expertise
+Structured parsing and intelligence extraction for Job Descriptions (JD):
+* **JD Ingestion & API Layer:** ([jd_routes.py](file:///d:/Projects/resume-intelligence-platform/src/api/jd_routes.py), [jd_service.py](file:///d:/Projects/resume-intelligence-platform/src/services/jd_service.py)) Endpoint supporting raw text string inputs or multi-part file uploads (`.txt`/`.pdf`), enforcing single input validation.
+* **Role & Experience Extraction:** ([jd_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py)) Role title identification (e.g. `Role: Data Scientist`) and total YOE requirement extraction (`YOE_PATTERN` matching expressions like "minimum 5 years of experience").
+* **Skill Extraction & Substring Overlap Resolution:** ([skill_configs.py](file:///d:/Projects/resume-intelligence-platform/src/configs/skill_configs.py)) Regex skill extraction with longest-match overlap resolution (resolving `C++` vs `C`, `MySQL` vs `SQL`).
+* **Noise Section Filtering:** ([jd_configs.py](file:///d:/Projects/resume-intelligence-platform/src/configs/jd_configs.py)) Identifies and strips non-essential boilerplate sections ("About Us", "Perks & Benefits", "EEO Statement") while preserving core JD sections ("Requirements", "Qualifications", "Responsibilities").
+* **Skill Requirement Classification:** Line-by-line classification of requirements into `required` (e.g. `must have`, `mandatory`) vs `optional` (e.g. `preferred`, `nice to have`) vs `unknown`.
+* **Skill-Specific YOE Extraction:** Per-skill experience requirement extraction (e.g. `5+ years of Python experience`, `3 years of experience with React`).
+
+**Phase 4 Output Schema:**
+```json
+{
+  "role": "Data Scientist",
+  "experience": 5,
+  "skills": ["Python", "Machine Learning", "SQL"],
+  "skill_specific_experience": [
+    { "skill": "Python", "experience": 5 }
+  ],
+  "skill_requirements": [
+    { "line": "Must have 5+ years of Python experience", "requirement": "required" }
+  ]
+}
+```
 
 ---
 
-### Phase 5: Resume ↔ JD Matching ⏳
+## Phase 5: Resume ↔ JD Matching ⏳
 
 Dual-sided matching engine:
 ```
@@ -140,7 +160,7 @@ Provides breakdown of strong matching skills vs missing requirements.
 
 ---
 
-### Phase 6: ML / NLP Intelligence ⏳
+## Phase 6: ML / NLP Intelligence ⏳
 
 Introduces machine learning components beyond deterministic/rule-based logic:
 * **Semantic Skill Matching:** e.g., `scikit-learn` ↔ `sklearn`
@@ -150,7 +170,7 @@ Introduces machine learning components beyond deterministic/rule-based logic:
 
 ---
 
-### Phase 7: Backend & Production Engineering ⏳
+## Phase 7: Backend & Production Engineering ⏳
 
 Transforming core intelligence into an enterprise platform:
 ```
@@ -160,7 +180,7 @@ API Gateway → FastAPI Backend → [Resume Service | JD Service | Match Service
 
 ---
 
-### Phase 8: Deployment + MLOps ⏳
+## Phase 8: Deployment + MLOps ⏳
 
 Production lifecycle & continuous evaluation:
 * Git → CI → Tests → Docker Build → Cloud Deployment (AWS/GCP) → Monitoring & Model Evaluation
@@ -201,7 +221,7 @@ RESUME INTELLIGENCE PLATFORM
             │
  ┌──────────┴───────────┐
  ▼                      ▼
-Resume Intelligence   Job Intelligence
+Resume Intelligence   Job Intelligence (P4) ✅
  │                      │
  └──────────┬───────────┘
             ▼
@@ -234,11 +254,12 @@ Resume Intelligence   Job Intelligence
 Phase 1  ████████████████████ 100% ✅
 Phase 2  ████████████████████ 100% ✅
 Phase 3  ████████████████████ 100% ✅ (P3D4 Complete)
-Phase 4  ░░░░░░░░░░░░░░░░░░░░   0% ⏳ Next Milestone
-Phase 5  ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 4  ████████████████████ 100% ✅ (P4D4 Complete)
+Phase 5  ░░░░░░░░░░░░░░░░░░░░   0% ⏳ Next Milestone
 Phase 6  ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 7  ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8  ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
-Our immediate next milestone is **Phase 4: Job Description Intelligence**.
+Our immediate next milestone is **Phase 5: Resume ↔ JD Matching**.
+
