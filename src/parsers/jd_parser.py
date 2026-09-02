@@ -2,17 +2,6 @@ import re
 from ..configs.jd_configs import ROLE_KEYWORDS,REQUIRED_SKILL_KEYWORDS,OPTIONAL_SKILL_KEYWORDS,NOISE_SECTION_HEADERS,JD_SECTION_HEADERS
 from ..configs.skill_configs import KNOWN_SKILLS
 
-# A. Case-insensitive headers
-# B. JD with no headers
-# C. Noise section at the end
-# D. "experience with Python" wording
-# E. multiple skill + YOE on one line
-# F. unknown skills must survive
-# G. duplicate skills
-# H. C vs C++
-# I. MySQL vs SQL
-
-
 SKILL_PATTERN = "|".join(
     re.escape(skill)
     for skill in KNOWN_SKILLS
@@ -40,10 +29,26 @@ SKILL_YOE_PATTERN = re.compile(
 )
 
 YOE_PATTERN = re.compile(
-     r"\b(?:minimum|at\s+least)?\s*(\d+)\+?\s+(?:years?|yrs?)\s+(?:of\s+)?(?:professional\s+)?(?:industry\s+)?experience\b"
-     r"|\b(?:minimum|at\s+least)?\s*(\d+)\+?\s+(?:years?|yrs?)\s+(?:in\s+the\s+)?industry\b",
-     re.IGNORECASE,
-     )
+    r"""
+    \b(?:minimum|at\s+least)?\s*
+    (\d+)\+?
+    \s+(?:years?|yrs?)
+    \s+(?:of\s+)?
+    (?:professional\s+)?
+    (?:industry\s+)?
+    experience\b
+    (?!\s+(?:with|in)\b)
+
+    |
+
+    \b(?:minimum|at\s+least)?\s*
+    (\d+)\+?
+    \s+(?:years?|yrs?)
+    \s+(?:in\s+the\s+)?
+    industry\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 def _extract_jd(text:str)->list[str]:
     lines = text.split("\n")
@@ -54,35 +59,41 @@ def _extract_jd(text:str)->list[str]:
            extracted_jd.append(line)
     return extracted_jd
 
-def _parse_jd(jd:list[dict])->list[dict]:
-    parsed_jd = []
-    for entry in jd:
-        entry_jd = {
-            'role': None,
-            "experience":None
-        }
-    return jd
-
 def _extract_role(jd: list[str]) -> str | None:
     for line in jd:
-        if ":" in line:
-           key,role = line.split(":", 1)
-           if key.strip().lower() in ROLE_KEYWORDS:
-              return role.strip()
+        if ":" not in line:
+            continue
+
+        key, role = line.split(":", 1)
+
+        if key.strip().lower() not in ROLE_KEYWORDS:
+            continue
+
+        role = role.strip()
+
+        for section in NOISE_SECTION_HEADERS | JD_SECTION_HEADERS:
+            pattern = rf"\b{re.escape(section)}\b"
+            role = re.split(pattern, role, maxsplit=1, flags=re.IGNORECASE)[0]
+
+        role = role.strip()
+
+        return role or None
+
     return None
 
 def _extract_experience(jd: list[str]) -> int | None:
-    for line in jd:
-        match = re.search(YOE_PATTERN, line)
+    text = " ".join(jd)
 
-        if not match:
-            continue
+    match = re.search(YOE_PATTERN, text)
 
-        if match.group(1):
-            return int(match.group(1))
+    if not match:
+        return None
 
-        if match.group(2):
-            return int(match.group(2))
+    if match.group(1):
+        return int(match.group(1))
+
+    if match.group(2):
+        return int(match.group(2))
 
     return None
 

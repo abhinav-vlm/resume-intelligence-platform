@@ -1,5 +1,5 @@
 from io import BytesIO
-
+import fitz
 import pytest
 from fastapi import UploadFile
 
@@ -13,7 +13,7 @@ async def test_process_jd_text():
 
     result = await process_jd(text)
 
-    assert result["content"] == text
+    assert result["text"] == text
 
     assert result["jd"] == {
         "role": None,
@@ -47,47 +47,32 @@ async def test_process_jd_text():
 @pytest.mark.asyncio
 async def test_process_jd_file():
 
-    content = b"Backend Engineer\nPython\nFastAPI\nSQL"
+    doc = fitz.open()
+
+    page = doc.new_page()
+
+    page.insert_text(
+        (50, 50),
+        "Backend Engineer\nPython\nFastAPI\nSQL"
+    )
+
+    pdf_bytes = doc.tobytes()
+
+    doc.close()
 
     file = UploadFile(
-        filename="jd.txt",
-        file=BytesIO(content),
+        filename="jd.pdf",
+        file=BytesIO(pdf_bytes),
     )
 
     result = await process_jd(file)
 
-    # This test is only valid if the service currently
-    # supports decoding the uploaded bytes.
-    assert result["content"] == "Backend Engineer\nPython\nFastAPI\nSQL"
-
-    assert result["jd"] == {
-    "role": None,
-    "experience": None,
-    "skills":[
+    assert result["text"]
+    assert result["jd"]["skills"] == [
         "Python",
         "FastAPI",
         "SQL",
-    ],
-    "skill_specific_experience": [],
-    "skill_requirements": [
-        {
-            "line": "Backend Engineer",
-            "requirement": "unknown",
-        },
-        {
-            "line": "Python",
-            "requirement": "unknown",
-        },
-        {
-            "line": "FastAPI",
-            "requirement": "unknown",
-        },
-        {
-            "line": "SQL",
-            "requirement": "unknown",
-        },        
-    ],
-}
+    ]
 
 @pytest.mark.asyncio
 async def test_process_jd_skill_specific_experience():

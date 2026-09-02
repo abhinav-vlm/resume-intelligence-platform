@@ -11,6 +11,7 @@ KNOWN_SKILLS = {
     "FastAPI",
     "Django",
     "Flask",
+    "Git",
     "Node.js",
     "AWS",
     "Docker",

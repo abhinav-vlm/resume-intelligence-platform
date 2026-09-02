@@ -495,3 +495,70 @@ def test_parse_jd_filters_noise_and_extracts_data():
         "Python",
         "AWS",
     ]
+
+def test_extract_overall_experience_ignores_skill_specific_experience():
+    jd = [
+        "4 years of experience with SQL",
+        "3+ years of professional industry experience",
+    ]
+
+    result = _extract_experience(jd)
+
+    assert result == 3
+
+def test_extract_overall_experience_ignores_skill_specific_experience_reversed():
+    jd = [
+        "3+ years of professional industry experience",
+        "4 years of experience with SQL",
+    ]
+
+    result = _extract_experience(jd)
+
+    assert result == 3
+
+def test_extract_overall_experience_ignores_skill_specific_experience():
+    jd = [
+        "4 years of experience with SQL",
+        "3+ years of professional industry experience",
+    ]
+
+    result = _extract_experience(jd)
+
+    assert result == 3
+def test_extract_overall_experience_ignores_skill_specific_experience_when_overall_comes_first():
+    jd = [
+        "3+ years of professional industry experience",
+        "4 years of experience with SQL",
+    ]
+
+    result = _extract_experience(jd)
+
+    assert result == 3
+
+def test_extract_experience_returns_none_when_only_skill_specific_experience_exists():
+    jd = [
+        "4 years of experience with SQL",
+        "3 years of Python experience",
+    ]
+
+    result = _extract_experience(jd)
+
+    assert result is None
+
+def test_extract_role_stops_at_noise_section():
+    jd = [
+        "Job Title: Senior Backend / ML Engineer  About the company We are a fast-growing"
+    ]
+
+    result = _extract_role(jd)
+
+    assert result == "Senior Backend / ML Engineer"
+
+def test_extract_role():
+    jd = [
+        "Job Title: Senior Backend / ML Engineer"
+    ]
+
+    result = _extract_role(jd)
+
+    assert result == "Senior Backend / ML Engineer"
