@@ -128,7 +128,6 @@ Structured parsing and intelligence extraction for Job Descriptions (JD):
 * **Role & Experience Extraction:** ([jd_parser.py](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py)) Role title identification (e.g. `Role: Data Scientist`) and total YOE requirement extraction (`YOE_PATTERN` matching expressions like "minimum 5 years of experience").
 * **Skill Extraction & Substring Overlap Resolution:** ([skill_configs.py](file:///d:/Projects/resume-intelligence-platform/src/configs/skill_configs.py)) Regex skill extraction with longest-match overlap resolution (resolving `C++` vs `C`, `MySQL` vs `SQL`).
 * **Noise Section Filtering:** ([jd_configs.py](file:///d:/Projects/resume-intelligence-platform/src/configs/jd_configs.py)) Identifies and strips non-essential boilerplate sections ("About Us", "Perks & Benefits", "EEO Statement") while preserving core JD sections ("Requirements", "Qualifications", "Responsibilities").
-* **Skill Requirement Classification:** Line-by-line classification of requirements into `required` (e.g. `must have`, `mandatory`) vs `optional` (e.g. `preferred`, `nice to have`) vs `unknown`.
 * **Skill-Specific YOE Extraction:** Per-skill experience requirement extraction (e.g. `5+ years of Python experience`, `3 years of experience with React`).
 
 **Phase 4 Output Schema:**
@@ -145,6 +144,11 @@ Structured parsing and intelligence extraction for Job Descriptions (JD):
   ]
 }
 ```
+
+> [!NOTE]
+> **Phase 4 Limitation (`skill_requirements`):**
+> * **Keyword-based classification:** `skill_requirements` currently relies on line-by-line keyword matching heuristics (`required`, `optional`, `unknown`) across filtered JD lines rather than deep contextual understanding.
+> * **Future Improvement (Phase 6):** This will be improved in **Phase 6: ML / NLP Intelligence** via semantic relationship modeling and entity-bound contextual requirement extraction.
 
 ---
 
@@ -164,6 +168,7 @@ Provides breakdown of strong matching skills vs missing requirements.
 
 Introduces machine learning components beyond deterministic/rule-based logic:
 * **Semantic Skill Matching:** e.g., `scikit-learn` ↔ `sklearn`
+* **Semantic Requirement Relationships:** Advanced contextual classification and entity-bound relationship parsing to upgrade Phase 4 `skill_requirements` heuristics
 * **Embedding-Based Similarity:** Vector matching between project descriptions and JD requirements
 * **Classification Models:** Role classification, skill taxonomy, seniority classification
 * **Semantic Compatibility:** Joint Resume + JD embedding layer
