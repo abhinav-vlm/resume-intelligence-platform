@@ -1,0 +1,231 @@
+from src.analyzers.skill_experience_analyzer import analyze_skill_experience
+
+
+def test_explicit_skills_are_extracted_with_experience_evidence():
+    experience = [
+        {
+            "company": "Gosotek",
+            "start_month": "January",
+            "start_year": 2024,
+            "end_month": "February",
+            "end_year": 2024,
+            "description": [
+                "Tools and Technologies used: Javascript, ReactJS, NextJs, CSS"
+            ],
+        }
+    ]
+
+    resume_skills = [
+        "JavaScript",
+        "React",
+        "Next.js",
+        "CSS",
+    ]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    skills = [item["skill"] for item in result]
+
+    assert "JavaScript" in skills
+    assert "React" in skills
+    assert "Next.js" in skills
+    assert "CSS" in skills
+
+    for item in result:
+        assert item["evidence"]["company"] == "Gosotek"
+        assert item["evidence"]["start_month"] == "January"
+        assert item["evidence"]["start_year"] == 2024
+        assert item["evidence"]["end_month"] == "February"
+        assert item["evidence"]["end_year"] == 2024
+
+
+def test_embedded_skills_are_detected():
+    experience = [
+        {
+            "company": "ABC",
+            "start_month": "March",
+            "start_year": 2022,
+            "end_month": "December",
+            "end_year": 2023,
+            "description": [
+                "Built REST APIs using FastAPI and Python."
+            ],
+        }
+    ]
+
+    resume_skills = [
+        "Python",
+        "FastAPI",
+        "React",
+    ]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    skills = [item["skill"] for item in result]
+
+    assert "Python" in skills
+    assert "FastAPI" in skills
+    assert "React" not in skills
+
+
+def test_unrelated_resume_skills_are_not_detected():
+    experience = [
+        {
+            "company": "ABC",
+            "start_month": "March",
+            "start_year": 2022,
+            "end_month": "December",
+            "end_year": 2023,
+            "description": [
+                "Built REST APIs using FastAPI."
+            ],
+        }
+    ]
+
+    resume_skills = [
+        "Python",
+        "FastAPI",
+        "React",
+    ]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    skills = [item["skill"] for item in result]
+
+    assert "FastAPI" in skills
+    assert "Python" not in skills
+    assert "React" not in skills
+
+
+def test_missing_dates_are_preserved_as_none():
+    experience = [
+        {
+            "company": "ABC",
+            "start_month": None,
+            "start_year": None,
+            "end_month": None,
+            "end_year": None,
+            "description": [
+                "Built APIs using Python."
+            ],
+        }
+    ]
+
+    resume_skills = ["Python"]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    assert len(result) == 1
+    assert result[0]["skill"] == "Python"
+
+    evidence = result[0]["evidence"]
+
+    assert evidence["company"] == "ABC"
+    assert evidence["start_month"] is None
+    assert evidence["start_year"] is None
+    assert evidence["end_month"] is None
+    assert evidence["end_year"] is None
+
+
+def test_multiple_experience_entries_preserve_their_own_evidence():
+    experience = [
+        {
+            "company": "Company A",
+            "start_month": "January",
+            "start_year": 2021,
+            "end_month": "December",
+            "end_year": 2022,
+            "description": [
+                "Worked with Python."
+            ],
+        },
+        {
+            "company": "Company B",
+            "start_month": "January",
+            "start_year": 2023,
+            "end_month": "June",
+            "end_year": 2024,
+            "description": [
+                "Worked with Python and FastAPI."
+            ],
+        },
+    ]
+
+    resume_skills = [
+        "Python",
+        "FastAPI",
+    ]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    python_entries = [
+        item for item in result
+        if item["skill"] == "Python"
+    ]
+
+    assert len(python_entries) == 2
+
+    assert python_entries[0]["evidence"]["company"] == "Company A"
+    assert python_entries[0]["evidence"]["start_year"] == 2021
+    assert python_entries[0]["evidence"]["end_year"] == 2022
+
+    assert python_entries[1]["evidence"]["company"] == "Company B"
+    assert python_entries[1]["evidence"]["start_year"] == 2023
+    assert python_entries[1]["evidence"]["end_year"] == 2024
+
+
+def test_empty_description_returns_no_skill_evidence():
+    experience = [
+        {
+            "company": "ABC",
+            "start_month": "January",
+            "start_year": 2024,
+            "end_month": "February",
+            "end_year": 2024,
+            "description": [],
+        }
+    ]
+
+    resume_skills = ["Python", "FastAPI"]
+
+    result = analyze_skill_experience(experience, resume_skills)
+
+    assert result == []
+
+
+def test_empty_experience_returns_empty_result():
+    result = analyze_skill_experience(
+        experience=[],
+        resume_skills=["Python", "FastAPI"],
+    )
+
+    assert result == []
+
+
+
+def test_skill_evidence_contains_only_expected_fields():
+    experience = [
+        {
+            "company": "ABC",
+            "start_month": "January",
+            "start_year": 2024,
+            "end_month": "February",
+            "end_year": 2024,
+            "description": [
+                "Built APIs using Python."
+            ],
+        }
+    ]
+
+    result = analyze_skill_experience(
+        experience=experience,
+        resume_skills=["Python"],
+    )
+
+    assert set(result[0]["evidence"].keys()) == {
+        "company",
+        "start_month",
+        "start_year",
+        "end_month",
+        "end_year",
+    }

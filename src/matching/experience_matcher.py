@@ -13,10 +13,10 @@ def match_experience(resume_experience: int | None,jd_experience: int | None) ->
           match['status'] = "underqualified"
     return match
 
-def match_skill_experience(jd_skill_experience:list[dict],resume_skill_experience:list[dict])->list[dict]:
-    match = []
-    for item in jd_skill_experience:
-        entry = {
-            'skill' : item.get("skill"),
-            'required_experience':
-        }
+# def match_skill_experience(jd_skill_experience:list[dict],resume_skill_experience:list[dict])->list[dict]:
+#     match = []
+#     for item in jd_skill_experience:
+#         entry = {
+#             'skill' : item.get("skill"),
+#             'required_experience':
+#         }

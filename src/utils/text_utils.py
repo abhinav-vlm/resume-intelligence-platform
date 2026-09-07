@@ -12,7 +12,7 @@ def contains_keywords(line:str,keywords:list[str])->bool:
     line = line.upper()
 
     return any(
-        keyword in line for keyword in keywords
+        keyword.upper() in line for keyword in keywords
     )    
 
 def _is_project_title(line:str)->bool:
