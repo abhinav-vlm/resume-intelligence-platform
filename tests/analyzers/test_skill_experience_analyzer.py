@@ -1,4 +1,4 @@
-from src.analyzers.skill_experience_analyzer import analyze_skill_experience
+from src.analyzers.skill_experience_analyzer import analyze_skill_experience,_merge_intervals,_calculate_months
 
 
 def test_explicit_skills_are_extracted_with_experience_evidence():
@@ -229,3 +229,135 @@ def test_skill_evidence_contains_only_expected_fields():
         "end_month",
         "end_year",
     }
+
+def test_single_interval():
+    intervals = [
+        ((2021, 1), (2021, 6))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2021, 6))
+    ]
+
+def test_separate_intervals():
+    intervals = [
+        ((2021, 1), (2021, 6)),
+        ((2021, 9), (2022, 3))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2021, 6)),
+        ((2021, 9), (2022, 3))
+    ]
+
+def test_adjacent_intervals():
+    intervals = [
+        ((2021, 1), (2021, 6)),
+        ((2021, 7), (2021, 12))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2021, 12))
+    ]
+
+def test_partially_overlapping_intervals():
+    intervals = [
+        ((2021, 1), (2022, 8)),
+        ((2022, 1), (2023, 3))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2023, 3))
+    ]
+
+def test_interval_inside_previous():
+    intervals = [
+        ((2021, 1), (2024, 12)),
+        ((2022, 1), (2023, 6))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2024, 12))
+    ]
+
+
+def test_interval_inside_previous():
+    intervals = [
+        ((2021, 1), (2024, 12)),
+        ((2022, 1), (2023, 6))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2024, 12))
+    ]
+
+def test_december_to_january():
+    intervals = [
+        ((2021, 12), (2022, 1)),
+        ((2022, 2), (2022, 6))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 12), (2022, 6))
+    ]
+
+def test_empty_intervals():
+    assert _merge_intervals([]) == []
+
+def test_multiple_chained_overlaps():
+    intervals = [
+        ((2021, 1), (2021, 6)),
+        ((2021, 5), (2022, 3)),
+        ((2022, 2), (2023, 1)),
+        ((2023, 1), (2023, 8))
+    ]
+
+    assert _merge_intervals(intervals) == [
+        ((2021, 1), (2023, 8))
+    ]
+
+def test_calculate_months_same_month():
+    intervals = [
+        ((2024, 1), (2024, 1))
+    ]
+
+    assert _calculate_months(intervals) == 1
+
+def test_calculate_months_same_year():
+    intervals = [
+        ((2024, 1), (2024, 6))
+    ]
+
+    assert _calculate_months(intervals) == 6
+
+def test_calculate_months_full_year():
+    intervals = [
+        ((2024, 1), (2024, 12))
+    ]
+
+    assert _calculate_months(intervals) == 12
+
+def test_calculate_months_multiple_years():
+    intervals = [
+        ((2021, 1), (2023, 3))
+    ]
+
+    assert _calculate_months(intervals) == 27
+
+def test_calculate_months_december_to_january():
+    intervals = [
+        ((2021, 12), (2022, 1))
+    ]
+
+    assert _calculate_months(intervals) == 2
+
+def test_calculate_months_multiple_intervals():
+    intervals = [
+        ((2021, 1), (2021, 6)),
+        ((2022, 1), (2022, 3))
+    ]
+
+    assert _calculate_months(intervals) == 9
+
+def test_calculate_months_empty():
+    assert _calculate_months([]) == 0

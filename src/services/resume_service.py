@@ -1,9 +1,6 @@
 from fastapi import UploadFile
+
 from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
-from ..analyzers.completeness_analyzer import analyze_completeness
-from ..normalizers.education_normalizer import normalize_education
-from ..normalizers.experience_normalizer import normalize_experience
-from ..normalizers.skill_normalizer import normalize_skills
 from ..parsers.text_parser import clean_text
 from ..parsers.email_parser import extract_email
 from ..parsers.phone_parser import extract_phone
@@ -12,9 +9,16 @@ from ..parsers.skills_parser import extract_skills
 from ..parsers.education_parser import process_education
 from ..parsers.experience_parser import process_experience
 from ..parsers.project_parser import process_projects
+
 from ..normalizers.project_normalizer import normalize_projects
+from ..normalizers.education_normalizer import normalize_education
+from ..normalizers.experience_normalizer import normalize_experience
+from ..normalizers.skill_normalizer import normalize_skills
+
+from ..analyzers.completeness_analyzer import analyze_completeness
 from ..analyzers.quality_analyzer import analyze_quality
 from ..analyzers.formatting_analyzer import analyze_formatting
+from ..analyzers.skill_experience_analyzer import process_skill_experience
 
 async def process_resume(file:UploadFile):
     if file.content_type != "application/pdf":
@@ -54,18 +58,21 @@ async def process_resume(file:UploadFile):
 
     if skills:
        skills = normalize_skills(skills)
+       
+    skill_experience = process_skill_experience(experience,skills)
 
     resume_data = {
-    "name": name,
-    "email": email,
-    "phone": phone,
-    "linkedin": None,
-    "education": education,
-    "experience": experience,
-    "projects": projects,
-    "skills": skills,
-    "text": cleaned_text,
-     }
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "linkedin": None,
+        "education": education,
+        "experience": experience,
+        "projects": projects,
+        "skills": skills,
+        "skill_experience": skill_experience,
+        "text": cleaned_text,
+    }
 
     completeness = analyze_completeness(resume_data)
     quality = analyze_quality(resume_data)
@@ -83,6 +90,7 @@ async def process_resume(file:UploadFile):
         "completeness":completeness,
         "quality_check":quality,
         "formatting_check": formatting,
+        "skill_experience":skill_experience,
         "content_type":file.content_type,
         "message":"Resume received successfully"
     }

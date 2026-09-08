@@ -229,3 +229,17 @@ async def test_process_resume():
         "issue": "inconsistent_header_format",
     }
     ]
+    skill_experience = result["skill_experience"]
+
+    assert "React" in skill_experience
+    assert "Next.js" in skill_experience
+
+    assert skill_experience["React"]["experience_months"] == 2
+    assert skill_experience["Next.js"]["experience_months"] == 2
+    assert skill_experience["React"]["intervals"] == [
+        ((2024, 1), (2024, 2))
+    ]
+
+    assert skill_experience["Next.js"]["intervals"] == [
+        ((2024, 1), (2024, 2))
+    ]

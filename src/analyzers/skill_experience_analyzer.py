@@ -33,7 +33,7 @@ def analyze_skill_experience(
 
     return skill_experience
 
-def calculate_skill_experience(skill_evidence: list[dict]) -> list[dict]:
+def calculate_skill_experience(skill_evidence: list[dict]) -> dict:
     skill_intervals = {}
 
     for entry in skill_evidence:
@@ -55,8 +55,60 @@ def calculate_skill_experience(skill_evidence: list[dict]) -> list[dict]:
         )
 
         if skill not in skill_intervals:
-            skill_intervals[skill] = [skill_interval]
+            skill_intervals[skill] = {
+                "intervals":[]
+            }
+        skill_intervals[skill]["intervals"].append(skill_interval)
 
-        skill_intervals[skill].append(skill_interval)
+    for skill, data in skill_intervals.items():
+        intervals = data["intervals"]
+        intervals.sort()
+        merged_intervals = _merge_intervals(intervals)
+        data["intervals"] = merged_intervals
+        data['experience_months'] = _calculate_months(merged_intervals)
 
     return skill_intervals
+
+def _merge_intervals(intervals: list[tuple]) -> list[tuple]:
+    merged = []
+    converted = []
+    for interval in intervals:
+        month_index_0 = interval[0][0]*12 + interval[0][1]
+        month_index_1 = interval[1][0]*12 + interval[1][1]
+        if not merged:
+            merged.append((month_index_0,month_index_1))
+            continue
+        if month_index_0 <= merged[-1][1]+1:
+            if month_index_1 <= merged[-1][1]:
+                continue
+            else:
+                merged[-1] = (merged[-1][0], month_index_1)
+        else:
+            merged.append((month_index_0,month_index_1))
+    for start_index,end_index in merged:
+        start_month = (start_index-1)%12+1
+        start_year = (start_index-1)//12
+        end_month = (end_index-1)%12+1
+        end_year = (end_index-1)//12
+        converted.append(((start_year,start_month),(end_year,end_month)))
+    return converted
+
+def _calculate_months(intervals: list[tuple]) -> int:
+    months = 0
+    for interval in intervals:
+        month = interval[1][1] - interval[0][1]
+        year = interval[1][0] - interval[0][0]
+        months += month + year*12 +1
+    return months
+
+def process_skill_experience(
+    experience: list[dict],
+    resume_skills: list[str]
+) -> dict:
+
+    skill_evidence = analyze_skill_experience(
+        experience,
+        resume_skills
+    )
+
+    return calculate_skill_experience(skill_evidence)
