@@ -3,6 +3,7 @@ import pytest
 from src.normalizers.experience_normalizer import (
     normalize_experience,
     _normalize_duration,
+    calculate_total_experience
 )
 
 
@@ -276,3 +277,68 @@ def test_normalize_multiple_experience():
 
     assert result[1]["company"] == "Microsoft"
     assert result[1]["employment_type"] == "intern"
+
+def test_calculate_total_experience_sequential():
+    experience = [
+        {
+            "start_month": "January",
+            "start_year": 2022,
+            "end_month": "December",
+            "end_year": 2022,
+        },
+        {
+            "start_month": "January",
+            "start_year": 2023,
+            "end_month": "December",
+            "end_year": 2023,
+        },
+    ]
+
+    result = calculate_total_experience(experience)
+
+    assert result == 24
+
+def test_calculate_total_experience_overlapping():
+    experience = [
+        {
+            "start_month": "January",
+            "start_year": 2022,
+            "end_month": "December",
+            "end_year": 2023,
+        },
+        {
+            "start_month": "June",
+            "start_year": 2023,
+            "end_month": "June",
+            "end_year": 2024,
+        },
+    ]
+
+    result = calculate_total_experience(experience)
+
+    assert result == 30
+
+def test_calculate_total_experience_skips_invalid_intervals():
+    experience = [
+        {
+            "start_month": "January",
+            "start_year": 2022,
+            "end_month": None,
+            "end_year": None,
+        },
+        {
+            "start_month": "January",
+            "start_year": 2023,
+            "end_month": "December",
+            "end_year": 2023,
+        },
+    ]
+
+    result = calculate_total_experience(experience)
+
+    assert result == 12
+
+def test_calculate_total_experience_empty():
+    result = calculate_total_experience([])
+
+    assert result == 0

@@ -1,4 +1,6 @@
 import re
+from src.utils.intervals import merge_intervals
+from src.configs.duration_configs import MONTHS
 
 def normalize_experience(experience: list[dict]) -> list[dict]:
     normalized_experience = []
@@ -27,6 +29,37 @@ def normalize_experience(experience: list[dict]) -> list[dict]:
         normalized_experience.append(normalize_entry)
 
     return normalized_experience
+
+def calculate_total_experience(experience: list[dict]) -> int:
+    intervals = []
+
+    for entry in experience:
+        start_month = MONTHS.get(entry.get("start_month"))
+        end_month = MONTHS.get(entry.get("end_month"))
+        start_year = entry.get("start_year")
+        end_year = entry.get("end_year")
+
+        if None in (start_month, end_month, start_year, end_year):
+            continue
+
+        interval = (
+            (start_year, start_month),
+            (end_year, end_month)
+        )
+
+        intervals.append(interval)
+
+    merged_intervals = merge_intervals(intervals)
+
+    return _calculate_months(merged_intervals)
+    
+def _calculate_months(intervals: list[tuple]) -> int:
+    months = 0
+    for interval in intervals:
+        month = interval[1][1] - interval[0][1]
+        year = interval[1][0] - interval[0][0]
+        months += month + year*12 +1
+    return months
 
 def _normalize_duration(duration:str|None)->tuple[str|None,str|None,int|None,int|None]:
     if not duration:

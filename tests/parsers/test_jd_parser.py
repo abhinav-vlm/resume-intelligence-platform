@@ -117,7 +117,7 @@ def test_extract_experience_years():
         "3 years of experience",
     ]
 
-    assert _extract_experience(jd) == 3
+    assert _extract_experience(jd) == 36
 
 
 def test_extract_experience_plus_years():
@@ -125,7 +125,7 @@ def test_extract_experience_plus_years():
         "3+ years of experience",
     ]
 
-    assert _extract_experience(jd) == 3
+    assert _extract_experience(jd) == 36
 
 
 def test_extract_experience_industry():
@@ -133,7 +133,7 @@ def test_extract_experience_industry():
         "At least 5 years of industry experience",
     ]
 
-    assert _extract_experience(jd) == 5
+    assert _extract_experience(jd) == 60
 
 
 def test_extract_experience_missing():
@@ -199,7 +199,7 @@ def test_parse_jd():
     result = parse_jd(text)
 
     assert result["role"] == "Machine Learning Engineer"
-    assert result["experience"] == 3
+    assert result["experience_months"] == 36
 
     assert result["skill_requirements"] == [
         {
@@ -345,7 +345,7 @@ def test_extract_skill_specific_experience():
     assert result == [
         {
             "skill": "Python",
-            "experience": 3,
+            "experience_months": 36,
         }
     ]
 def test_extract_multiple_skill_specific_experience():
@@ -356,8 +356,8 @@ def test_extract_multiple_skill_specific_experience():
     result = _extract_skill_specific_experience(jd)
 
     assert result == [
-        {"skill": "Python", "experience": 3},
-        {"skill": "AWS", "experience": 2},
+        {"skill": "Python", "experience_months": 36},
+        {"skill": "AWS", "experience_months": 24},
     ]
 
 def test_extract_skill_specific_experience_plus_years():
@@ -370,7 +370,7 @@ def test_extract_skill_specific_experience_plus_years():
     assert result == [
         {
             "skill": "FastAPI",
-            "experience": 5,
+            "experience_months": 60,
         }
     ]
 
@@ -384,7 +384,7 @@ def test_extract_skill_specific_experience_with_skill():
     assert result == [
         {
             "skill": "Python",
-            "experience": 4,
+            "experience_months": 48,
         }
     ]
 
@@ -400,15 +400,15 @@ def test_extract_skill_specific_experience_multiple_lines():
     assert result == [
         {
             "skill": "Python",
-            "experience": 3,
+            "experience_months": 36,
         },
         {
             "skill": "AWS",
-            "experience": 5,
+            "experience_months": 60,
         },
         {
             "skill": "FastAPI",
-            "experience": 2,
+            "experience_months": 24,
         },
     ]
 
@@ -489,7 +489,7 @@ def test_parse_jd_filters_noise_and_extracts_data():
     result = parse_jd(text)
 
     assert result["role"] == "Backend Engineer"
-    assert result["experience"] == 3
+    assert result["experience_months"] == 36
 
     assert result["skills"] == [
         "Python",
@@ -504,7 +504,7 @@ def test_extract_overall_experience_ignores_skill_specific_experience():
 
     result = _extract_experience(jd)
 
-    assert result == 3
+    assert result == 36
 
 def test_extract_overall_experience_ignores_skill_specific_experience_reversed():
     jd = [
@@ -514,7 +514,7 @@ def test_extract_overall_experience_ignores_skill_specific_experience_reversed()
 
     result = _extract_experience(jd)
 
-    assert result == 3
+    assert result == 36
 
 def test_extract_overall_experience_ignores_skill_specific_experience():
     jd = [
@@ -524,7 +524,7 @@ def test_extract_overall_experience_ignores_skill_specific_experience():
 
     result = _extract_experience(jd)
 
-    assert result == 3
+    assert result == 36
 def test_extract_overall_experience_ignores_skill_specific_experience_when_overall_comes_first():
     jd = [
         "3+ years of professional industry experience",
@@ -533,7 +533,7 @@ def test_extract_overall_experience_ignores_skill_specific_experience_when_overa
 
     result = _extract_experience(jd)
 
-    assert result == 3
+    assert result == 36
 
 def test_extract_experience_returns_none_when_only_skill_specific_experience_exists():
     jd = [
@@ -562,3 +562,42 @@ def test_extract_role():
     result = _extract_role(jd)
 
     assert result == "Senior Backend / ML Engineer"
+
+def test_parse_jd_experience_in_months():
+    text = """
+    Role: Machine Learning Engineer
+    Minimum 3 years of experience
+    """
+
+    result = parse_jd(text)
+
+    assert result["experience_months"] == 36
+
+def test_parse_jd_skill_experience_in_months():
+    text = """
+    Role: Machine Learning Engineer
+    2 years experience with Python
+    """
+
+    result = parse_jd(text)
+
+    assert result["skill_specific_experience"] == [
+        {
+            "skill": "Python",
+            "experience_months": 24,
+        }
+    ]
+
+def test_extract_skill_specific_experience_without_of():
+    jd = [
+        "2 years experience with Python",
+    ]
+
+    result = _extract_skill_specific_experience(jd)
+
+    assert result == [
+        {
+            "skill": "Python",
+            "experience_months": 24,
+        }
+    ]

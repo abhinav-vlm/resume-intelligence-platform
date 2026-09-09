@@ -1,3 +1,4 @@
+from src.normalizers.experience_normalizer import calculate_total_experience
 from fastapi import UploadFile
 
 from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
@@ -44,14 +45,15 @@ async def process_resume(file:UploadFile):
 
     skills = extract_skills(cleaned_text)
     education = process_education(cleaned_text)
-    experience = process_experience(cleaned_text)
+    experience = process_experience(cleaned_text) or []
     projects = process_projects(text_blocks, links)
 
     if education:
        education = normalize_education(education)
-
+    total_experience_months = 0
     if experience:
        experience = normalize_experience(experience)
+       total_experience_months = calculate_total_experience(experience)
 
     if projects:
        projects = normalize_projects(projects)
@@ -70,6 +72,7 @@ async def process_resume(file:UploadFile):
         "experience": experience,
         "projects": projects,
         "skills": skills,
+        "total_experience_months":total_experience_months,
         "skill_experience": skill_experience,
         "text": cleaned_text,
     }
@@ -87,6 +90,7 @@ async def process_resume(file:UploadFile):
         'experience':experience,
         'projects':projects,
         'skills':skills,
+        "total_experience_months":total_experience_months,
         "completeness":completeness,
         "quality_check":quality,
         "formatting_check": formatting,

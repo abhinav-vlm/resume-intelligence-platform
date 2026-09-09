@@ -13,17 +13,14 @@ def match_experience(resume_experience: int | None,jd_experience: int | None) ->
           match['status'] = "underqualified"
     return match
 
-def match_skill_experience(
-    jd_skill_experience: list[dict],
-    resume_skill_experience: dict
-) -> list[dict]:
+def match_skill_experience(resume_skill_experience: dict,jd_skill_experience: list[dict]) -> list[dict]:
 
     match = []
 
     for item in jd_skill_experience:
         entry = {
             "skill": item.get("skill"),
-            "required_experience_months": item.get("experience") * 12,
+            "required_experience_months": item.get("experience_months"),
             "candidate_experience_months": None,
             "difference_months": None,
             "status": None

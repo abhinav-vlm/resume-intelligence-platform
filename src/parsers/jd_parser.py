@@ -20,7 +20,7 @@ SKILL_YOE_PATTERN = re.compile(
     (?:
         (?P<years_2>\d+)\+?
         \s+(?:years?|yrs?)
-        \s+of\s+experience
+        \s+(?:of\s+)?experience
         \s+(?:with\s+)?
         (?P<skill_2>{SKILL_PATTERN})
     )
@@ -90,10 +90,10 @@ def _extract_experience(jd: list[str]) -> int | None:
         return None
 
     if match.group(1):
-        return int(match.group(1))
+        return int(match.group(1))*12
 
     if match.group(2):
-        return int(match.group(2))
+        return int(match.group(2))*12
 
     return None
 
@@ -109,7 +109,7 @@ def _extract_skill_specific_experience(jd: list[str]) -> list[dict]:
 
             skill_yoe.append({
                 "skill": skill,
-                "experience": int(years),
+                "experience_months": int(years)*12,
             })
 
     return skill_yoe
@@ -202,7 +202,7 @@ def parse_jd(text: str) -> dict:
     jd = _filter_noise_sections(jd)
     return {
         "role": _extract_role(jd),
-        "experience": _extract_experience(jd),
+        "experience_months": _extract_experience(jd),
         "skills": _extract_skills(jd),
         "skill_specific_experience":_extract_skill_specific_experience(jd),
         "skill_requirements": [

@@ -1,4 +1,5 @@
 from src.utils.text_utils import contains_keywords
+from src.utils.intervals import merge_intervals
 from src.configs.duration_configs import MONTHS
 from src.configs.normalization_configs import SKILL_ALIASES
 
@@ -63,35 +64,12 @@ def calculate_skill_experience(skill_evidence: list[dict]) -> dict:
     for skill, data in skill_intervals.items():
         intervals = data["intervals"]
         intervals.sort()
-        merged_intervals = _merge_intervals(intervals)
+        merged_intervals = merge_intervals(intervals)
         data["intervals"] = merged_intervals
         data['experience_months'] = _calculate_months(merged_intervals)
 
     return skill_intervals
 
-def _merge_intervals(intervals: list[tuple]) -> list[tuple]:
-    merged = []
-    converted = []
-    for interval in intervals:
-        month_index_0 = interval[0][0]*12 + interval[0][1]
-        month_index_1 = interval[1][0]*12 + interval[1][1]
-        if not merged:
-            merged.append((month_index_0,month_index_1))
-            continue
-        if month_index_0 <= merged[-1][1]+1:
-            if month_index_1 <= merged[-1][1]:
-                continue
-            else:
-                merged[-1] = (merged[-1][0], month_index_1)
-        else:
-            merged.append((month_index_0,month_index_1))
-    for start_index,end_index in merged:
-        start_month = (start_index-1)%12+1
-        start_year = (start_index-1)//12
-        end_month = (end_index-1)%12+1
-        end_year = (end_index-1)//12
-        converted.append(((start_year,start_month),(end_year,end_month)))
-    return converted
 
 def _calculate_months(intervals: list[tuple]) -> int:
     months = 0

@@ -243,3 +243,28 @@ async def test_process_resume():
     assert skill_experience["Next.js"]["intervals"] == [
         ((2024, 1), (2024, 2))
     ]
+    assert result["total_experience_months"] == 2
+
+async def create_upload_file_without_experience():
+    pdf_path = Path("tests/fixtures/resume_without_experience.pdf")
+
+    content = pdf_path.read_bytes()
+
+    return UploadFile(
+        filename=pdf_path.name,
+        file=BytesIO(content),
+        headers={
+            "content-type": "application/pdf"
+        }
+    )
+@pytest.mark.asyncio
+async def test_process_resume_without_experience():
+    file = await create_upload_file_without_experience()
+
+    result = await process_resume(file)
+
+    assert result is not None
+
+    assert result["experience"] == []
+    assert result["total_experience_months"] == 0
+    assert result["skill_experience"] == {}

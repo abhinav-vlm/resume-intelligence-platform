@@ -1,24 +1,24 @@
 from src.matching.experience_matcher import match_experience,match_skill_experience
 
 def test_match_experience_meets():
-    jd_experience = 3
-    resume_experience = 4
+    jd_experience = 36
+    resume_experience = 48
      
     result = match_experience(resume_experience,jd_experience)
-    assert result['difference'] == -1
+    assert result['difference'] == -12
     assert result['status'] == "meets"
 
-def test_match_experience_underqulified():
-    jd_experience = 5
-    resume_experience = 4
+def test_match_experience_underqualified():
+    jd_experience = 60
+    resume_experience = 48
      
     result = match_experience(resume_experience,jd_experience)
-    assert result['difference'] == 1
+    assert result['difference'] == 12
     assert result['status'] == "underqualified"
 
 def test_match_experience_perfect_meet():
-    jd_experience = 4
-    resume_experience = 4
+    jd_experience = 48
+    resume_experience = 48
      
     result = match_experience(resume_experience,jd_experience)
     assert result['difference'] == 0
@@ -26,14 +26,14 @@ def test_match_experience_perfect_meet():
 
 def test_match_experience_jd_null():
     jd_experience = None
-    resume_experience = 4
+    resume_experience = 48
      
     result = match_experience(resume_experience,jd_experience)
     assert result['difference'] is None
     assert result['status'] == "unknown"
 
 def test_match_experience_resume_null():
-    jd_experience = 5
+    jd_experience = 60
     resume_experience = None
      
     result = match_experience(resume_experience,jd_experience)
@@ -60,7 +60,7 @@ def test_skill_experience_underqualified():
     jd = [
         {
             "skill": "Python",
-            "experience": 3
+            "experience_months": 36
         }
     ]
 
@@ -73,7 +73,7 @@ def test_skill_experience_underqualified():
         }
     }
 
-    result = match_skill_experience(jd, resume)
+    result = match_skill_experience(resume,jd)
 
     assert result == [
         {
@@ -89,7 +89,7 @@ def test_skill_experience_exact_match():
     jd = [
         {
             "skill": "Python",
-            "experience": 3
+            "experience_months": 36
         }
     ]
 
@@ -102,7 +102,7 @@ def test_skill_experience_exact_match():
         }
     }
 
-    result = match_skill_experience(jd, resume)
+    result = match_skill_experience(resume,jd)
 
     assert result == [
         {
@@ -118,7 +118,7 @@ def test_skill_experience_exceeds_requirement():
     jd = [
         {
             "skill": "Python",
-            "experience": 3
+            "experience_months": 36
         }
     ]
 
@@ -131,7 +131,7 @@ def test_skill_experience_exceeds_requirement():
         }
     }
 
-    result = match_skill_experience(jd, resume)
+    result = match_skill_experience(resume,jd)
 
     assert result == [
         {
@@ -147,7 +147,7 @@ def test_skill_experience_missing_candidate_skill():
     jd = [
         {
             "skill": "Python",
-            "experience": 3
+            "experience_months": 36
         }
     ]
 
@@ -160,7 +160,7 @@ def test_skill_experience_missing_candidate_skill():
         }
     }
 
-    result = match_skill_experience(jd, resume)
+    result = match_skill_experience(resume,jd)
 
     assert result == [
         {
@@ -176,11 +176,11 @@ def test_skill_experience_multiple_skills():
     jd = [
         {
             "skill": "Python",
-            "experience": 3
+            "experience_months": 36
         },
         {
             "skill": "SQL",
-            "experience": 2
+            "experience_months": 24
         }
     ]
 
@@ -199,7 +199,7 @@ def test_skill_experience_multiple_skills():
         }
     }
 
-    result = match_skill_experience(jd, resume)
+    result = match_skill_experience(resume,jd)
 
     assert result == [
         {

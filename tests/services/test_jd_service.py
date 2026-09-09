@@ -17,7 +17,7 @@ async def test_process_jd_text():
 
     assert result["jd"] == {
         "role": None,
-        "experience": None,    
+        "experience_months": None,    
         "skills":[
         "Python",
         "FastAPI",
@@ -88,10 +88,10 @@ async def test_process_jd_skill_specific_experience():
     assert result["jd"]["skill_specific_experience"] == [
         {
             "skill": "Python",
-            "experience": 3,
+            "experience_months": 36,
         },
         {
             "skill": "AWS",
-            "experience": 2,
+            "experience_months": 24,
         },
     ]
