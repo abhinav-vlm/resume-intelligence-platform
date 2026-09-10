@@ -1,5 +1,4 @@
-from fastapi import APIRouter
-from fastapi import File,UploadFile
+from fastapi import APIRouter,File,UploadFile
 from ..services.resume_service import process_resume
 
 router = APIRouter()
