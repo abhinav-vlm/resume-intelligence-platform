@@ -1,4 +1,4 @@
-from src.configs.matching_roles import CANONICAL_ROLES
+from src.configs.matching_roles import CANONICAL_ROLES, SENIORITY_LEVELS
 
 
 def match_roles(
@@ -16,9 +16,10 @@ def match_roles(
 
     canonical_target_role = None
 
-    if target_role and target_role.strip().lower() in CANONICAL_ROLES:
+    if target_role:
+        normalized_target_role = normalize_role(target_role)
         canonical_target_role = CANONICAL_ROLES.get(
-            target_role.strip().lower()
+            normalized_target_role
         )
 
     matched["canonical_target_role"] = canonical_target_role
@@ -26,9 +27,10 @@ def match_roles(
     for role in candidate_roles:
         canonical_candidate_role = None
 
-        if role and role.strip().lower() in CANONICAL_ROLES:
+        if role:
+            normalized_candidate_role = normalize_role(role)
             canonical_candidate_role = CANONICAL_ROLES.get(
-                role.strip().lower()
+                normalized_candidate_role
             )
 
         matched["canonical_candidate_roles"].append(
@@ -51,3 +53,14 @@ def match_roles(
         matched["status"] = "mismatch"
 
     return matched
+
+
+def normalize_role(role: str) -> str:
+    words = role.strip().lower().split()
+    filtered_words = []
+
+    for word in words:
+        if word not in SENIORITY_LEVELS:
+            filtered_words.append(word)
+
+    return " ".join(filtered_words)

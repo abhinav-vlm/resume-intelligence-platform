@@ -79,4 +79,5 @@ def test_calculate_match():
     "machine learning engineer"]
     assert result["role_match"]["canonical_target_role"] == (
     "machine learning engineer")
+    
     assert result["role_match"]["status"] == "match"

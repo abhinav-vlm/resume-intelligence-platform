@@ -150,3 +150,10 @@ def test_unknown_target_role():
 
     assert result["canonical_target_role"] is None
     assert result["status"] == "unknown"
+
+
+def test_role_normalization():
+    result = match_roles(
+    ["  SENIOR   ML   ENGINEER  "],
+    "machine learning engineer")
+    assert result["status"] == "match"

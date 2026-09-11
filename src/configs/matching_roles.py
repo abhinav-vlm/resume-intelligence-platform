@@ -5,3 +5,10 @@ CANONICAL_ROLES = {
     "backend engineer": "backend engineer",
     "data analyst": "data analyst",
 }
+SENIORITY_LEVELS = {
+    "senior",
+    "junior",
+    "lead",
+    "principal",
+    "staff",
+}
