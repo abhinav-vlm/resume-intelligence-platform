@@ -1,5 +1,5 @@
 from io import BytesIO
-import fitz
+import pymupdf
 import pytest
 from fastapi import UploadFile
 
@@ -47,7 +47,7 @@ async def test_process_jd_text():
 @pytest.mark.asyncio
 async def test_process_jd_file():
 
-    doc = fitz.open()
+    doc = pymupdf.open()
 
     page = doc.new_page()
 

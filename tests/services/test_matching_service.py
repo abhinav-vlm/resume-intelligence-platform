@@ -4,27 +4,53 @@ from src.services.matching_service import calculate_match
 def test_calculate_match():
 
     resume_data = {
-    "skills": ["Python", "FastAPI", "SQL"],
-    "total_experience_months": 36,
-    "skill_experience": {
-        "Python": {
-            "experience_months": 36,
+        "skills": ["Python", "FastAPI", "SQL"],
+
+        "total_experience_months": 36,
+
+        "skill_experience": {
+            "Python": {
+                "experience_months": 36,
+            },
+            "FastAPI": {
+                "experience_months": 24,
+            },
         },
-        "FastAPI": {
-            "experience_months": 24,
-        },
-    },
-    "experience": [
-        {
-            "position": "Machine Learning Engineer"
-        }
-    ],
-}
+
+        "experience": [
+            {
+                "position": "Machine Learning Engineer"
+            }
+        ],
+
+        "projects": [
+            {
+                "project": "ML API",
+                "metadata": [
+                    {
+                        "type": "github",
+                        "url": "https://github.com/example/ml-api"
+                    }
+                ],
+                "description": [
+                    "Built a machine learning API using Python and FastAPI.",
+                    "Used SQL for data storage."
+                ]
+            }
+        ],
+    }
 
     jd_data = {
         "role": "ML Engineer",
-        "skills": ["Python", "FastAPI", "Docker"],
+
+        "skills": [
+            "Python",
+            "FastAPI",
+            "Docker"
+        ],
+
         "experience_months": 24,
+
         "skill_specific_experience": [
             {
                 "skill": "Python",
@@ -39,6 +65,10 @@ def test_calculate_match():
 
     result = calculate_match(resume_data, jd_data)
 
+    # --------------------------------------------------
+    # Skill Match
+    # --------------------------------------------------
+
     assert result["skill_match"]["matched"] == [
         "Python",
         "FastAPI",
@@ -52,10 +82,18 @@ def test_calculate_match():
         "SQL",
     ]
 
+    # --------------------------------------------------
+    # Total Experience Match
+    # --------------------------------------------------
+
     assert result["experience_match"]["required"] == 24
     assert result["experience_match"]["candidate"] == 36
     assert result["experience_match"]["difference"] == -12
     assert result["experience_match"]["status"] == "meets"
+
+    # --------------------------------------------------
+    # Skill Experience Match
+    # --------------------------------------------------
 
     assert result["skill_experience_match"][0] == {
         "skill": "Python",
@@ -72,12 +110,45 @@ def test_calculate_match():
         "difference_months": -12,
         "status": "meets",
     }
+
+    # --------------------------------------------------
+    # Role Match
+    # --------------------------------------------------
+
     assert result["role_match"]["candidate_roles"] == [
-    "Machine Learning Engineer"]   
+        "Machine Learning Engineer"
+    ]
+
     assert result["role_match"]["target_role"] == "ML Engineer"
+
     assert result["role_match"]["canonical_candidate_roles"] == [
-    "machine learning engineer"]
+        "machine learning engineer"
+    ]
+
     assert result["role_match"]["canonical_target_role"] == (
-    "machine learning engineer")
-    
+        "machine learning engineer"
+    )
+
     assert result["role_match"]["status"] == "match"
+
+    # --------------------------------------------------
+    # Project Match
+    # --------------------------------------------------
+
+    assert result["project_match"][0]["project"] == "ML API"
+
+    assert result["project_match"][0]["metadata"] == [
+        {
+            "type": "github",
+            "url": "https://github.com/example/ml-api"
+        }
+    ]
+
+    assert result["project_match"][0]["demonstrated"] == [
+        "Python",
+        "FastAPI",
+    ]
+
+    assert result["project_match"][0]["not_demonstrated"] == [
+        "Docker",
+    ]

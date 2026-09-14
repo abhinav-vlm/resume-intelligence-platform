@@ -1,7 +1,7 @@
-import fitz
+import pymupdf
 
 def extract_text(pdf_bytes:bytes)->str:
-    doc = fitz.open(stream=pdf_bytes,filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes,filetype="pdf")
     text = ""
 
     for page in doc:
@@ -10,7 +10,7 @@ def extract_text(pdf_bytes:bytes)->str:
     return text
 
 def extract_links(pdf_bytes: bytes) -> list[dict]:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     all_links = []
 
     for page_number, page in enumerate(doc):
@@ -26,7 +26,7 @@ def extract_links(pdf_bytes: bytes) -> list[dict]:
     return all_links
 
 def extract_text_blocks(pdf_bytes: bytes) -> list[dict]:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     blocks = []
 
     for page_number, page in enumerate(doc):

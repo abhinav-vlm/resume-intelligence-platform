@@ -1,4 +1,4 @@
-import fitz
+import pymupdf
 from fastapi import HTTPException
 from starlette.datastructures import UploadFile
 from src.parsers.jd_parser import parse_jd
@@ -10,7 +10,7 @@ async def process_jd(text: str | UploadFile):
         content = await text.read()  
         try:
            text = extract_text(content)
-        except fitz.FileDataError:
+        except pymupdf.FileDataError:
            raise HTTPException(
                   status_code=400,
                   detail="Invalid PDF file")

@@ -72,7 +72,9 @@ def normalize_degree(degree:str)->tuple[str|None,str|None]:
 
     return matched_degree,field
 
-def normalize_duration(duration:str)->tuple[int|None,int|None]:
+def normalize_duration(duration:str|None)->tuple[int|None,int|None]:
+    if not duration:
+        return (None,None)
     duration = duration.strip()
     years = re.findall(r'\d{4}',duration)
     years = [int(year) for year in years]
