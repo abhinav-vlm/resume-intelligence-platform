@@ -43,7 +43,9 @@ async def process_resume(file:UploadFile):
 
     name = extract_name(cleaned_text)
 
-    skills = extract_skills(cleaned_text)
+    skill_data = extract_skills(cleaned_text)
+    skills = normalize_skills(skill_data["known"])
+    unknown_skills = skill_data["unknown"]
     education = process_education(cleaned_text)
     experience = process_experience(cleaned_text) or []
     projects = process_projects(text_blocks, links)
@@ -72,6 +74,7 @@ async def process_resume(file:UploadFile):
         "experience": experience,
         "projects": projects,
         "skills": skills,
+        "unknown_skills": unknown_skills,
         "total_experience_months":total_experience_months,
         "skill_experience": skill_experience,
         "text": cleaned_text,
@@ -89,7 +92,8 @@ async def process_resume(file:UploadFile):
         'education':education,
         'experience':experience,
         'projects':projects,
-        'skills':skills,
+        "skills": skills,
+        "unknown_skills": unknown_skills,
         "total_experience_months":total_experience_months,
         "completeness":completeness,
         "quality_check":quality,

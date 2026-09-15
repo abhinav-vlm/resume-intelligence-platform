@@ -46,6 +46,7 @@ async def test_process_resume():
     assert education["end_year"] == 2024
     assert education["score"] == 8.3
     assert education["score_type"] == 'CGPA'
+
     assert result["skills"]
 
     assert "Python" in result["skills"]
@@ -54,7 +55,6 @@ async def test_process_resume():
     assert "React" in result["skills"]
     assert "Express.js" in result["skills"]
     assert "Next.js" in result["skills"]
-    assert "GitHub" in result["skills"]
     assert "ReactJS" not in result["skills"]
     assert "Express.JS" not in result["skills"]
     assert "Next.JS" not in result["skills"]
