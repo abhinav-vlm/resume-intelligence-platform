@@ -58,7 +58,9 @@ async def test_process_resume():
     assert "ReactJS" not in result["skills"]
     assert "Express.JS" not in result["skills"]
     assert "Next.JS" not in result["skills"]
-
+    assert "unknown_skills" in result
+    assert isinstance(result["unknown_skills"], list)
+    
     experience = result["experience"][0]
     assert experience["company"] == "Gosotek"
     assert experience["start_month"] == "January"

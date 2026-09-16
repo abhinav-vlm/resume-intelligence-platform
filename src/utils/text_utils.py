@@ -15,16 +15,25 @@ def contains_keywords(line:str,keywords:list[str])->bool:
         keyword.upper() in line for keyword in keywords
     )    
 
-def _is_project_title(line:str)->bool:
+def _is_project_title(line: str) -> bool:
     if not line:
         return False
+
+    line = line.strip()
+
     if line[0].islower():
         return False
+
     if line.endswith("."):
         return False
+
     if line.startswith(("•", "-", "*")):
         return False
-    return True
 
+    if "," in line:
+        return False
+
+    return True
+    
 def _is_project_metadata(line: str, keywords: list[str]) -> bool:
     return ":" in line and contains_keywords(line, keywords)

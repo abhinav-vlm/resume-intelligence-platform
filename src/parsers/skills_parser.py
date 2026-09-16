@@ -1,23 +1,15 @@
 import re
 
-from ..configs.header_configs import SECTION_HEADERS, SKILL
+from ..configs.header_configs import SECTION_HEADERS, SKILL,SKILL_CATEGORY_HEADERS
 from ..configs.skill_configs import KNOWN_SKILLS
 from ..configs.normalization_configs import SKILL_ALIASES
 from ..utils.text_utils import contains_keywords
 
 
-def extract_skills(text: str) -> dict[str, list[str]]:
-    lines = text.split("\n")
-
-    known_skills = []
-    unknown_candidates = []
-
-    seen_known = set()
-    seen_unknown = set()
-
+def build_skill_patterns() -> list[tuple[str, re.Pattern]]:
     skill_vocabulary = list(KNOWN_SKILLS) + list(SKILL_ALIASES.keys())
 
-    skill_patterns = [
+    return [
         (
             skill,
             re.compile(
@@ -28,11 +20,82 @@ def extract_skills(text: str) -> dict[str, list[str]]:
         for skill in skill_vocabulary
     ]
 
+
+def extract_skill_candidates(line: str) -> list[str]:
+    if ":" in line:
+        _, value = line.split(":", 1)
+    else:
+        value = line
+
+    return [
+        candidate.strip()
+        for candidate in re.split(r"[,|/]", value)
+        if candidate.strip()
+    ]
+
+
+def is_skill_candidate(candidate: str) -> bool:
+    candidate = candidate.strip()
+
+    if not candidate:
+        return False
+
+    if len(candidate) > 60:
+        return False
+
+    if len(candidate.split()) > 6:
+        return False
+
+    return True
+
+
+def match_known_skill(
+    candidate: str,
+    skill_patterns: list[tuple[str, re.Pattern]],
+) -> str | None:
+
+    for _, pattern in skill_patterns:
+        match = pattern.fullmatch(candidate)
+
+        if match:
+            return match.group(0)
+
+    return None
+
+
+def add_unique_skill(
+    skill: str,
+    skills: list[str],
+    seen: set[str],
+) -> None:
+
+    key = skill.lower()
+
+    if key not in seen:
+        skills.append(skill)
+        seen.add(key)
+
+def is_skill_category_header(line: str) -> bool:
+    normalized = line.strip().rstrip(":").upper()
+    return normalized in SKILL_CATEGORY_HEADERS
+
+def extract_skills(text: str) -> dict[str, list[str]]:
+    lines = text.split("\n")
+
+    known_skills = []
+    unknown_candidates = []
+
+    seen_known = set()
+    seen_unknown = set()
+
+    skill_patterns = build_skill_patterns()
+
     inside_skills = False
 
     for line in lines:
         line = line.strip()
-
+        if is_skill_category_header(line):
+           continue
         if not line:
             continue
 
@@ -44,45 +107,30 @@ def extract_skills(text: str) -> dict[str, list[str]]:
         if contains_keywords(line, SECTION_HEADERS):
             break
 
-        # ---------------------------------------------------------
-        # Extract individual skill candidates from this line
-        # ---------------------------------------------------------
-
-        if ":" in line:
-            _, value = line.split(":", 1)
-        else:
-            value = line
-
-        candidates = [
-            candidate.strip()
-            for candidate in value.split(",")
-            if candidate.strip()
-        ]
+        candidates = extract_skill_candidates(line)
 
         for candidate in candidates:
-            candidate_match = None
 
-            for _, pattern in skill_patterns:
-                match = pattern.fullmatch(candidate)
+            if not is_skill_candidate(candidate):
+                continue
 
-                if match:
-                    candidate_match = match
-                    break
+            known_skill = match_known_skill(
+                candidate,
+                skill_patterns,
+            )
 
-            if candidate_match:
-                surface_form = candidate_match.group(0)
-                key = surface_form.lower()
-
-                if key not in seen_known:
-                    known_skills.append(surface_form)
-                    seen_known.add(key)
-
+            if known_skill:
+                add_unique_skill(
+                    known_skill,
+                    known_skills,
+                    seen_known,
+                )
             else:
-                key = candidate.lower()
-
-                if key not in seen_unknown:
-                    unknown_candidates.append(candidate)
-                    seen_unknown.add(key)
+                add_unique_skill(
+                    candidate,
+                    unknown_candidates,
+                    seen_unknown,
+                )
 
     return {
         "known": known_skills,

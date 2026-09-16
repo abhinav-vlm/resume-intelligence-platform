@@ -59,9 +59,6 @@ async def process_resume(file:UploadFile):
 
     if projects:
        projects = normalize_projects(projects)
-
-    if skills:
-       skills = normalize_skills(skills)
        
     skill_experience = process_skill_experience(experience,skills)
 

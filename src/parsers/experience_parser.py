@@ -43,14 +43,20 @@ def _parse_experience(experience_block:list[list[str]])->list[dict]:
             "role":None,
             "description":[]
         }
+        description_started = False
         for i,line in enumerate(block):
             if contains_keywords(line,ROLE_KEYWORDS):
                experience["role"] = line
+               description_started = False
             elif is_duration(line):
                experience["duration"] = line
                experience["company"] = block[i-1]
+               description_started = False
             elif line.startswith(("•", "-", "*")):
                experience["description"].append(line)
+               description_started = True
+            elif description_started:
+                experience["description"][-1] += " " + line
         parsed_experience.append(experience)
     return parsed_experience if parsed_experience else None
 
