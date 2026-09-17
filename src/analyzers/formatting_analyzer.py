@@ -1,34 +1,57 @@
 from src.configs.header_configs import SECTION_HEADERS
 
-def _analyze_bullet_formatting(entries: list[dict]) -> list[dict]:
+
+def _analyze_bullet_formatting(entries: list[dict] | None) -> list[dict]:
+    if not entries:
+        return []
+
     issues = []
-    for index,entry in enumerate(entries):
+
+    for index, entry in enumerate(entries):
         local_issue = {
-            "index":index,
-            "issues":[]
+            "index": index,
+            "issues": [],
         }
-        description = entry.get('description',[])
+
+        description = entry.get("description") or []
+
         if not description:
             issues.append(local_issue)
             continue
-        first_bullet = _get_bullet_marker(description[0][0])
+
+        first_bullet = _get_bullet_marker(description[0])
 
         for item in description:
             current_bullet = _get_bullet_marker(item)
+
             if current_bullet != first_bullet:
-                local_issue["issues"].append("inconsistent_bullets")
+                local_issue["issues"].append(
+                    "inconsistent_bullets"
+                )
                 break
+
         issues.append(local_issue)
+
     return issues
-def _analyze_section_headers(text: str) -> list[dict]:
+
+
+def _analyze_section_headers(text: str | None) -> list[dict]:
+    if not text:
+        return []
+
     headers = []
+
     for line in text.splitlines():
         normalized_line = line.strip().rstrip(":").strip()
+
         if normalized_line.upper() in SECTION_HEADERS:
             headers.append({
-                "header":normalized_line.upper(),
-                'has_colon' : line.strip().endswith(":")})
+                "header": normalized_line.upper(),
+                "has_colon": line.strip().endswith(":"),
+            })
+
     return headers
+
 
 def _get_bullet_marker(item: str) -> str | None:
     if not item:
@@ -39,12 +62,15 @@ def _get_bullet_marker(item: str) -> str | None:
 
     return None
 
-def _check_section_header_consistency(headers: list[dict]) -> list[dict]:
-    header_consistency = []
+
+def _check_section_header_consistency(
+    headers: list[dict],
+) -> list[dict]:
 
     if not headers:
         return []
 
+    header_consistency = []
     expected_format = headers[0]["has_colon"]
 
     for header in headers:
@@ -56,16 +82,23 @@ def _check_section_header_consistency(headers: list[dict]) -> list[dict]:
 
     return header_consistency
 
+
 def analyze_formatting(resume: dict) -> dict:
+    experience = resume.get("experience") or []
+    projects = resume.get("projects") or []
+    text = resume.get("text") or ""
+
     bullet_formatting = _analyze_bullet_formatting(
-        resume["experience"] + resume["projects"]
+        experience + projects
     )
 
-    section_headers = _analyze_section_headers(
-        resume["text"]
+    section_headers = _analyze_section_headers(text)
+
+    section_header_consistency = (
+        _check_section_header_consistency(section_headers)
     )
-    section_header_consistency = _check_section_header_consistency(section_headers)
+
     return {
-    "bullets": bullet_formatting,
-    "section_headers": section_header_consistency,
-      }
+        "bullets": bullet_formatting,
+        "section_headers": section_header_consistency,
+    }

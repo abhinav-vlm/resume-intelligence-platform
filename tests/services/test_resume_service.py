@@ -70,10 +70,10 @@ async def test_process_resume():
     assert result["experience"][0]["position"] == "Front-End Software Engineering"
     assert result["experience"][0]["employment_type"] == "intern"
     assert experience["description"] == [
-        "• Utilized Latest technology in Next library to improve a web application with 15 percent visual inhancement and",
-        "• The application named Manhunter Securities was created and improves upto 25 percent effeciency.",
-        "• Tools and Technologies used: Javascript, ReactJS, NextJs, CSS"
-      ]
+    "• Utilized Latest technology in Next library to improve a web application with 15 percent visual inhancement and 10 percent page loading.",
+    "• The application named Manhunter Securities was created and improves upto 25 percent effeciency.",
+    "• Tools and Technologies used: Javascript, ReactJS, NextJs, CSS",
+    ]
     assert result["projects"][0]["project"] == "Bloger - A Full Stack Blog App | GitHub"
 
     assert result["projects"][0]["metadata"] == [
@@ -181,7 +181,7 @@ async def test_process_resume():
     {
         "index": 0,
         "bullet_count": 3,
-        "content_length": 272,
+        "content_length": 297,
         "has_metrics": True,
     }
 ]

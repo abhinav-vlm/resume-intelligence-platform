@@ -31,6 +31,11 @@ TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, Jupyter — all lost.
 ### Source Evidence
 JD9 test: 8 skills listed in the JD. Only 2 (`Python`, `SQL`) are in `KNOWN_SKILLS`. The other 6 are entirely absent from the output.
 
+Re-verified on real PDF fixture `jd_ml_engineer_test.pdf`:
+The document lists required and preferred skills: `Python`, `Machine Learning`, `scikit-learn`, `SQL`, `FastAPI`, `Docker`, `AWS`, `Kubernetes`, `PyTorch`, `MLflow`.
+Output: `['Python', 'SQL', 'FastAPI', 'Docker', 'AWS', 'Kubernetes']`.
+`Machine Learning`, `scikit-learn`, `PyTorch`, and `MLflow` are completely lost because they are not present in `KNOWN_SKILLS`.
+
 ### Expected
 A robust JD parser should extract all mentioned skills, not only those in a pre-defined list. At minimum, the known skills list must be dramatically expanded. Ideally, skill extraction should not rely solely on an exhaustive closed list.
 
@@ -74,6 +79,13 @@ Output: `"role": null`
 
 ### Source Evidence
 JD2 output: `"role": null`. JD6 output: `"role": null`. Both are real-world valid JD formats.
+
+Re-verified on real PDF fixture `jd_ml_engineer_test.pdf`:
+Line 1: `Machine Learning Engineer`
+Line 2: `Location: Bengaluru, India`
+Line 3: `Experience: 3+ years`
+Line 4: `Role Overview`
+Output: `"role": null`. Because the role is not preceded by `Role:`, `Position:`, or `Job Title:`, `_extract_role()` fails to detect the job title.
 
 ROLE_KEYWORDS:
 ```python
@@ -121,6 +133,16 @@ Python and SQL (with `in` phrasing) are completely missed.
 
 ### Source Evidence
 JD7 test confirmed: `_extract_skill_specific_experience(['5 years of experience in Python', '3 years of experience in SQL']) => []`
+
+Re-verified on real PDF fixture `jd_ml_engineer_test.pdf`:
+The document has an explicit `Skill-Specific Experience` section:
+```
+• Python: 3+ years
+• Machine Learning: 2+ years
+• FastAPI: 1+ year
+• SQL: 2+ years
+```
+Output: `[]`. None of these requirements are extracted because `SKILL_YOE_PATTERN` requires suffix syntax (`N years of <skill> experience`), completely missing key-value syntax (`<skill>: N+ years`).
 
 ### Expected
 The pattern should also handle `N years of experience in <SKILL>`. This is a very common phrasing in real JDs.
@@ -607,26 +629,63 @@ OPEN
 
 ---
 
+## JD-016: Overall experience extraction fails for labeled `Experience: N+ years` format
+
+- **Source:** `jd_ml_engineer_test.pdf`
+- **Category:** Information Loss / Generalization
+- **Severity:** P1
+
+### Observed
+In `jd_ml_engineer_test.pdf`, the experience requirement is stated as a dedicated metadata line:
+```
+Experience: 3+ years
+```
+`_extract_experience()` evaluates `YOE_PATTERN` and returns `None`.
+
+### Source Evidence
+Tested on `jd_ml_engineer_test.pdf`:
+Line 3: `Experience: 3+ years`
+Parser execution:
+`_extract_experience(jd_lines)` evaluates `re.search(YOE_PATTERN, text)`.
+Output: `None`. `experience_months` is recorded as `null`.
+
+### Expected
+The parser should recognize `Experience: <N>+ years` as an overall experience requirement and extract `36` months.
+
+### Impact
+Standard JDs that specify required experience in a header block (`Experience: 3+ years`, `Years of Experience: 5+`) fail overall experience extraction. Candidate matching and ATS filters cannot enforce seniority requirements.
+
+### Root Cause
+`YOE_PATTERN` in `src/parsers/jd_parser.py` (lines 31-51) only matches suffix phrasings like `\b\d+\+?\s+years?\s+of\s+experience\b` or `\d+\+?\s+years?\s+in\s+the\s+industry`. It lacks support for prefix label phrasings like `Experience:\s*\d+\+?\s*years`.
+
+### Likely Area
+`src/parsers/jd_parser.py` — `YOE_PATTERN` and `_extract_experience()`.
+
+### Status
+OPEN
+
+---
+
 ## Audit Summary — JD Parser
 
 | | |
 |---|---|
-| **Documents tested** | 10 synthetic JD inputs exercising distinct parser behaviors |
-| **Unique issues found** | 15 |
+| **Documents tested** | 10 synthetic JD inputs + 1 real-world PDF fixture (`jd_ml_engineer_test.pdf`) |
+| **Unique issues found** | 16 |
 
 ### Issues by Severity
 
 | Severity | Count | IDs |
 |---|---|---|
 | P0 | 1 | JD-001 |
-| P1 | 4 | JD-002, JD-003, JD-004, JD-009 |
+| P1 | 5 | JD-002, JD-003, JD-004, JD-009, JD-016 |
 | P2 | 8 | JD-005, JD-006, JD-007, JD-008, JD-011, JD-012, JD-013, JD-014 |
 | P3 | 2 | JD-010, JD-015 |
 
 ### Top 5 Highest-Priority Issues
 
-1. **JD-001 (P0)** — Only 17 skills recognized; any other skill (TensorFlow, PyTorch, MongoDB, etc.) is silently dropped — verified with Data Science JD retaining only 2 of 8 listed skills.
+1. **JD-001 (P0)** — Only 17 skills recognized; any other skill (TensorFlow, PyTorch, MongoDB, scikit-learn, MLflow, etc.) is silently dropped — verified with Data Science JD and `jd_ml_engineer_test.pdf`.
 2. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
-3. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for the majority of real-world JD formats.
-4. **JD-009 (P1)** — Noise section filtering is non-reentrant — requirements after an unrecognized section following a noise block are silently dropped.
-5. **JD-003 (P1)** — `skill_specific_experience` misses the `N years of experience in <skill>` phrasing — confirmed with test input.
+3. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for the majority of real-world JD formats, including `jd_ml_engineer_test.pdf`.
+4. **JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) unparsed by `YOE_PATTERN`, leaving `experience_months: null`.
+5. **JD-003 (P1)** — `skill_specific_experience` misses `N years of experience in <skill>` and key-value `<skill>: N+ years` phrasings.

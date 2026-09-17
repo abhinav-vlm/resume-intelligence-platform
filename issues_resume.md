@@ -2,7 +2,7 @@
 
 ---
 
-## R-001: Skills parser silently drops all skills on lines without a colon
+~~## R-001: Skills parser silently drops all skills on lines without a colon~~
 
 - **Source:** `HARSHIT_WEBDEV.pdf`, `resume_without_experience.pdf`
 - **Category:** Information Loss
@@ -50,7 +50,7 @@ Entire skills section becomes `None` for any resume not using the `Category: val
 `src/parsers/skills_parser.py` — the `if ':' in line` branch (line 19). Lines without a colon are not processed at all.
 
 ### Status
-OPEN
+~~OPEN~~ **FIXED** (commit `e72a322`: `extract_skill_candidates` supports lines without colons, skips `SKILL_CATEGORY_HEADERS`, splits on delimiters `[,|/]`, and separates known and unknown skills with length/word filters)
 
 ---
 
@@ -142,7 +142,7 @@ OPEN
 
 ---
 
-## R-004: Wrapped/continued bullet lines are split into a new orphan line in the description
+~~## R-004: Wrapped/continued bullet lines are split into a new orphan line in the description~~
 
 - **Source:** `HARSHIT_WEBDEV.pdf`
 - **Category:** Information Loss
@@ -183,7 +183,7 @@ Metric data and key qualitative details in experience descriptions are lost. `qu
 `src/parsers/experience_parser.py` — `_extract_experience()` only adds bullet lines to `curr_experience` via the `if line.startswith(...)` check at line 52. Non-bullet, non-duration lines within the experience block are discarded.
 
 ### Status
-OPEN
+~~OPEN~~ **FIXED** (commit `e72a322`: `_parse_experience` maintains `description_started` state flag and appends non-bullet continuation lines to `experience["description"][-1]`)
 
 ---
 
@@ -331,7 +331,7 @@ OPEN
 
 ---
 
-## R-008: First experience bullet continuation line lost — `10 percent page loading` dropped completely
+~~## R-008: First experience bullet continuation line lost — `10 percent page loading` dropped completely~~
 
 - **Source:** `HARSHIT_WEBDEV.pdf`
 - **Category:** Information Loss
@@ -364,7 +364,7 @@ A metric ("10 percent page loading") is lost from the structured output. `qualit
 `src/parsers/experience_parser.py` — non-bullet continuation lines in experience descriptions are not appended to the previous bullet (same root as R-004).
 
 ### Status
-OPEN
+~~OPEN~~ **FIXED** (commit `e72a322`: verified in `test_experience_parser.py` and `process_resume` — Gosotek first bullet now contains `"10 percent page loading."`)
 
 ---
 
@@ -405,7 +405,7 @@ Cross-page text-block continuations should be joined to the previous line, not t
 `src/parsers/project_parser.py` — `_is_project_title()` in `src/utils/text_utils.py` (line 18). It has no heuristics to distinguish a real title from a wrapped line fragment.
 
 ### Status
-OPEN
+~~OPEN~~ **PARTIALLY FIXED** (commit `e72a322`: `HTML, CSS` phantom project eliminated via comma check in `_is_project_title` and page change detection in `_extract_projects`. However, `CSS` phantom project still persists because single-token lines on the same page without commas still pass `_is_project_title("CSS")`)
 
 ---
 
@@ -870,8 +870,750 @@ OPEN
 
 ### Top 5 Highest-Priority Issues
 
-1. **R-009 (P0)** — Multi-page PDF creates phantom project entries (`HTML, CSS`, `CSS`) — confirmed incorrect extraction from `resume_without_experience.pdf`.
+1. **R-009 (P0)** — Multi-page PDF creates phantom project entries (`HTML, CSS`, `CSS`) — ~~`HTML, CSS` fixed~~, `CSS` phantom project still persists.
 2. **R-002 (P0)** — LinkedIn URL extracted but hard-coded as `None` — confirmed information loss in `HARSHIT_WEBDEV.pdf`.
-3. **R-001 (P0)** — Skills parser drops all skills when lines lack a colon — generalization failure.
+3. ~~**R-001 (P0)** — Skills parser drops all skills when lines lack a colon — generalization failure.~~ (FIXED in commit `e72a322`)
 4. **R-013 (P1)** — `quality_analyzer` crashes with `TypeError` when `start_year`/`end_year` is `None`.
 5. **R-014 (P1)** — `ACHIEVEMENTS` section not extracted from either test document — confirmed information loss.
+
+---
+
+# Parser Generalization Audit
+
+Independent generalization audit across 3 distinct resume formats:
+1. `HARSHIT_WEBDEV.pdf` (Reference format: categorized technical skills, project titles with `| GitHub` links, standard single-job experience)
+2. `Resume - Aditya Saha.pdf` (Alternative format: degree/institution variation, ongoing job with "Present", multi-line project blocks with duration and preview links, conjunction-separated skills, academic achievements & interests)
+3. `Abhinav_ML_Resume.pdf` (ML resume format: single-line role+company+location, "Technologies" header instead of "Skills", combined institution+degree lines, certifications section with credential links, projects without metadata)
+
+---
+
+### Strengthened Existing Issues
+
+ID: R-002
+Priority: P0
+Resume: `HARSHIT_WEBDEV.pdf`, `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Resume Service (`resume_service.py`)
+Category: Information Loss
+
+Observed behavior:
+LinkedIn URLs are successfully extracted from PDF hyperlink annotations by `extract_links()` in all 3 resumes, but `process_resume()` unconditionally sets `"linkedin": None` on line 69 of `src/services/resume_service.py`.
+
+Expected behavior:
+Extracted links should be inspected for LinkedIn URLs (or regex matching against header text) and assigned to the `"linkedin"` field.
+
+Evidence:
+- `HARSHIT_WEBDEV.pdf`: `https://www.linkedin.com/in/abhinav-pratap-singh-1a8a57200/` extracted from annotation; output has `"linkedin": null`.
+- `Resume - Aditya Saha.pdf`: `https://www.linkedin.com/in/adityasaha39/` extracted from annotation; output has `"linkedin": null`.
+- `Abhinav_ML_Resume.pdf`: `https://www.linkedin.com/in/abhinav-pratap-singh-1a8a57200?...` extracted from annotation; output has `"linkedin": null`.
+In all 3 cases, `completeness_analyzer` flags `"missing_recommended": ["linkedin"]`.
+
+Impact:
+100% of tested resumes with valid LinkedIn profiles lose their LinkedIn URLs, corrupting ATS candidate records and downstream enrichment.
+
+Root cause:
+Hard-coded `"linkedin": None` in `resume_service.py`.
+
+Existing issue:
+Strengthens R-002 (confirmed universal across all 3 resumes).
+
+Recommended direction:
+Filter `links` list for `linkedin.com` domains in `resume_service.py` and populate the field before running analyzers.
+
+---
+
+ID: R-005
+Priority: P1
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Experience Parser (`experience_parser.py`)
+Category: Incorrect Extraction / Entity Association
+
+Observed behavior:
+In `_parse_experience`, when a duration line is encountered, the parser unconditionally assumes `experience["company"] = block[i-1]`. On resumes where role, company, and location are combined on the previous line (`Machine Learning Engineer, LTTS – Mysore, KA`), the entire string becomes the company name.
+
+Expected behavior:
+The parser should recognize composite lines containing role and company, and segment them instead of assuming line `i-1` is purely the company name.
+
+Evidence:
+In `Abhinav_ML_Resume.pdf`:
+Line 14: `Machine Learning Engineer, LTTS – Mysore, KA`
+Line 15: `Sept 2024 – Present`
+Parsed output:
+`"company": "Machine Learning Engineer, LTTS – Mysore, KA"`
+
+Impact:
+Company name contains role and location, distorting company matching, entity resolution, and company-specific experience calculation.
+
+Root cause:
+Rigid positional assumption `experience["company"] = block[i-1]` without line decomposition.
+
+Existing issue:
+Strengthens R-005.
+
+Recommended direction:
+Implement line-level decomposition (e.g. splitting on commas, dashes, or pipes) to extract role, company, and location entities independently.
+
+---
+
+ID: R-006
+Priority: P1
+Resume: `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Text Utils / Normalizers (`text_utils.py`, `experience_normalizer.py`, `education_normalizer.py`)
+Category: Information Loss / Date Handling
+
+Observed behavior:
+`DURATION_PATTERNS` in `text_utils_configs.py` does not match `Month YYYY - Month YYYY` (e.g. `Jul 2017 - Mar 2019`, `Jun 2022 - Jul 2022`). Furthermore, `_normalize_duration` in `experience_normalizer.py` fails to recognize "Present" as an active duration marker.
+
+Expected behavior:
+`is_duration()` should recognize all standard month-year range formats. `_normalize_duration()` should resolve "Present" to the current month and year.
+
+Evidence:
+- `Resume - Aditya Saha.pdf`: Education entry `Jul 2017 - Mar 2019` fails `is_duration()`, resulting in `duration: null` and `start_year: null, end_year: null`.
+- `Resume - Aditya Saha.pdf`: Experience entry `May 2022 - Present` yields `start_month: "May", end_month: null, start_year: 2022, end_year: null`. `calculate_total_experience()` evaluates to `0` months.
+- `Abhinav_ML_Resume.pdf`: Experience entry `Sept 2024 – Present` yields `start_month: null, end_month: null, start_year: 2024, end_year: null`. `calculate_total_experience()` evaluates to `0` months.
+
+Impact:
+Candidates currently working have 0 months of calculated experience. Education durations are lost, triggering `missing_start_year` and `missing_end_year` quality alerts.
+
+Root cause:
+Pattern 2 in `DURATION_PATTERNS` only expects `Month - Month, Year` (e.g. `January - February, 2024`), failing on dual-year strings. Normalizers do not map "Present" to current date.
+
+Existing issue:
+Strengthens R-006.
+
+Recommended direction:
+Expand `DURATION_PATTERNS` to cover `(?:Jan|Feb|...)\s+\d{4}\s*[-–]\s*(?:(?:Jan|Feb|...)\s+\d{4}|Present)`. Support "Present" mapping in normalizers.
+
+---
+
+ID: R-007
+Priority: P1
+Resume: `HARSHIT_WEBDEV.pdf`
+Component: Project Parser (`project_parser.py`)
+Category: Incorrect Normalization
+
+Observed behavior:
+Project titles retaining trailing delimiter metadata such as `| GitHub` or `| LIVE` are stored verbatim without stripping the suffix.
+
+Expected behavior:
+Project names should be cleaned of repository or host link suffixes.
+
+Evidence:
+`HARSHIT_WEBDEV.pdf`:
+`"project": "Bloger - A Full Stack Blog App | GitHub"`
+`"project": "Weather Sphere - A Real-time Weather App | GitHub"`
+`"project": "PrompTopic - An AI Prompting Tool | GitHub"`
+
+Impact:
+Pollutes project entity names in matching algorithms, database storage, and UI presentation.
+
+Root cause:
+`_parse_projects` sets `project["project"] = text` without stripping trailing delimiters.
+
+Existing issue:
+Strengthens R-007.
+
+Recommended direction:
+Clean project title string using delimiter splitting (`|`, `- GitHub`, `(GitHub)`).
+
+---
+
+ID: R-009
+Priority: P0
+Resume: `Resume - Aditya Saha.pdf`
+Component: Project Parser (`project_parser.py`, `text_utils.py`)
+Category: Project Boundary Detection
+
+Observed behavior:
+Single-line duration strings inside project sections that lack commas (e.g. `Jun 2022 - Jul 2022`, `Dec 2021 - Jan 2022`, `Nov 2021 - Dec 2021`) pass `_is_project_title()` and are instantiated as separate project objects.
+
+Expected behavior:
+Duration strings must be recognized as project metadata or duration attributes of the preceding project, never as new project entities.
+
+Evidence:
+In `Resume - Aditya Saha.pdf`:
+Raw projects: 3 real projects (`COURSEJAM`, `VSTREAM`, `ADMIN UI`).
+Parsed output: 6 project entities:
+- Project 0: `"COURSEJAM - An E-Commerece Website"` (empty description, empty metadata)
+- Project 1: `"Jun 2022 - Jul 2022"` (contains all description bullets and preview links)
+- Project 2: `"VSTREAM - A clone like video streaming"` (empty description, empty metadata)
+- Project 3: `"Dec 2021 - Jan 2022"` (contains all description bullets and preview links)
+- Project 4: `"ADMIN UI"` (empty description, empty metadata)
+- Project 5: `"Nov 2021 - Dec 2021"` (contains all description bullets and preview links)
+
+Impact:
+Severe structural corruption: every project is split into an empty ghost shell and an anonymous duration title. Project title search, keyword matching, and bullet counts are invalid.
+
+Root cause:
+`_is_project_title()` only rejects lines starting with lowercase, ending in '.', starting with bullets, or containing commas. `Jun 2022 - Jul 2022` satisfies all conditions and is treated as a title.
+
+Existing issue:
+Strengthens R-009 (demonstrates that phantom project generation occurs on single-page resumes via duration lines, not just multi-page boundaries).
+
+Recommended direction:
+Check `is_duration(line)` before `_is_project_title(line)`, and associate duration with the current active project.
+
+---
+
+ID: R-014
+Priority: P1
+Resume: `HARSHIT_WEBDEV.pdf`, `Resume - Aditya Saha.pdf`
+Component: Section Detection / Schemas
+Category: Information Loss
+
+Observed behavior:
+`ACHIEVEMENTS` and `ACADEMIC ACHIEVEMENTS` sections are detected as stopping boundaries for prior sections, but their content is completely dropped.
+
+Expected behavior:
+Achievement entries and associated URLs (e.g. LeetCode, HackerRank, contest rankings) should be extracted and represented in the candidate schema.
+
+Evidence:
+- `HARSHIT_WEBDEV.pdf`: JEE Mains Rank Holder and Sports Event medals are discarded.
+- `Resume - Aditya Saha.pdf`: 5 achievement bullets containing LeetCode, Geektrust, HackerRank test links and Codathon rank 469 are discarded.
+
+Impact:
+High-signal competitive programming, academic rank, and certification achievements are lost to downstream ranking.
+
+Root cause:
+No achievement parser exists, and `resume_data` schema has no `achievements` field.
+
+Existing issue:
+Strengthens R-014.
+
+Recommended direction:
+Add an `achievements` parser and incorporate an `achievements` array into the resume schema.
+
+---
+
+ID: R-015
+Priority: P1
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Section Detection / Parsers
+Category: Information Loss
+
+Observed behavior:
+`CERTIFICATIONS` section stops the experience parser, but its entries (`Python for Data Science` by IBM, `Discover data analysis` by Microsoft) and associated Credly / Microsoft verification links are discarded.
+
+Expected behavior:
+Certifications should be extracted with title, issuing organization, and verification URL.
+
+Evidence:
+`Abhinav_ML_Resume.pdf`:
+Lines 22-28 contain two certifications with clickable links (`https://www.credly.com/badges/...`, `https://learn.microsoft.com/api/...`). Both are absent from output.
+
+Impact:
+Verified candidate credentials and licenses are invisible to recruiters and matching engines.
+
+Root cause:
+No parser exists for the `CERTIFICATIONS` section.
+
+Existing issue:
+Strengthens R-015.
+
+Recommended direction:
+Implement a `certifications_parser.py` and extract credential links from `links`.
+
+---
+
+ID: R-018
+Priority: P3
+Resume: `HARSHIT_WEBDEV.pdf`, `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Text Parser (`text_parser.py`)
+Category: Noise / Glyphs
+
+Observed behavior:
+PDF decorative font icon glyphs (e.g. `ƒ`, `#`, `ï`, `§`, `‡`, `°`, `>`, `Ó`) leak into the cleaned text and contaminate downstream lines.
+
+Expected behavior:
+Icon font artifacts and non-standard symbols in contact blocks should be cleaned during text normalization.
+
+Evidence:
+- `HARSHIT_WEBDEV.pdf`: `ƒ +91 9774913812`, `# apsbqt@gmail.com`, `ï Abhinav Pratap Singh`, `§ Blockmecoder`
+- `Resume - Aditya Saha.pdf`: `‡ github.com/adityasaha39 | ° linkedin.com/in/adityasaha39 | > aditya.saha2017@gmail.com | Ó +91-8787679905`
+- `Abhinav_ML_Resume.pdf`: `# harshitsinghtil@gmail.com | ƒ 7726850107 | § Blockmecoder | ï Abhinav Pratap Singh`
+
+Impact:
+Creates noise in raw text, risks breaking header parsers, and leaks raw character artifacts into stored profile representations.
+
+Root cause:
+`clean_text()` only replaces tabs, carriage returns, and multiple whitespace/newlines; it performs no glyph stripping.
+
+Existing issue:
+Strengthens R-018.
+
+Recommended direction:
+Add regex sanitization for common font-awesome/private-use Unicode icon code points.
+
+---
+
+ID: R-021
+Priority: P2
+Resume: `Resume - Aditya Saha.pdf`
+Component: Education Normalizer (`education_normalizer.py`)
+Category: Incorrect Normalization
+
+Observed behavior:
+When degree text uses the plural form `Bachelors of Technology`, `normalize_degree()` fails to match `DEGREE_ALIASES` and falls back to returning the entire raw string with `field: null`.
+
+Expected behavior:
+Plural degree variations (`bachelors`, `masters`) should resolve to canonical forms (`B.Tech`, `M.Tech`) with field of study extracted.
+
+Evidence:
+`Resume - Aditya Saha.pdf`:
+Raw line: `Bachelors of Technology in Electronics And Communication Engineering`
+Parsed output:
+`"degree": "Bachelors of Technology in Electronics And Communication Engineering"`, `"field": null`
+
+Impact:
+Inability to match candidate degrees against JD requirements expecting canonical `B.Tech` or `Bachelor of Technology`.
+
+Root cause:
+`DEGREE_ALIASES` only contains singular `"bachelor of technology"`, not `"bachelors of technology"`.
+
+Existing issue:
+Strengthens R-021.
+
+Recommended direction:
+Add plural aliases (`bachelors of technology`, `bachelors of science`, `bachelors of engineering`) to `DEGREE_ALIASES`.
+
+---
+
+### New Issues Discovered During Generalization Audit
+
+ID: R-022
+Priority: P1
+Resume: `Resume - Aditya Saha.pdf`
+Component: Skills Parser (`skills_parser.py`)
+Category: Information Loss / Generalization
+
+Observed behavior:
+Skill lines that separate technologies with the conjunction `" and "` instead of commas or slashes fail candidate extraction. Only 3 skills (`C`, `C++`, `Git`) were recognized out of over 12 skills listed.
+
+Expected behavior:
+Candidate skill extractor should tokenize on conjunctions like `" and "` in addition to `[,|/]`.
+
+Evidence:
+In `Resume - Aditya Saha.pdf`:
+- `Frontend Technology: HTML, CSS and React JS` -> tokenized as `['HTML', 'CSS and React JS']`. `React JS` is lost from known skills.
+- `Backend Technology: Node JS and Express JS` -> tokenized as `['Node JS and Express JS']`. `Node.js` and `Express.js` are lost.
+- `DataBase: MongoDB and SQL` -> tokenized as `['MongoDB and SQL']`. `SQL` is lost.
+- `Tools: Git, Github and Postman` -> tokenized as `['Git', 'Github and Postman']`. `Postman` and `GitHub` are lost.
+Result: `known_skills` is only `['C', 'C++', 'Git']`.
+
+Impact:
+Over 75% of candidate skills are dropped, destroying resume-to-JD match scoring.
+
+Root cause:
+`extract_skill_candidates()` splits strictly with `re.split(r"[,|/]", value)`, ignoring `" and "`.
+
+Existing issue:
+New.
+
+Recommended direction:
+Update splitting regex to `r"[,|/]|(?:\s+and\s+)"` or post-process unknown candidates by checking for conjunction splitting.
+
+---
+
+ID: R-023
+Priority: P0
+Resume: `Resume - Aditya Saha.pdf`
+Component: Project Parser (`project_parser.py`, `text_utils.py`)
+Category: Project Boundary Detection
+
+Observed behavior:
+Standalone duration lines following project titles (e.g. `Jun 2022 - Jul 2022`) are misclassified as project titles, creating phantom project records and separating the project title from its description.
+
+Expected behavior:
+A line matching a date/duration pattern must be attributed as the date metadata of the current active project, not treated as a new project title.
+
+Evidence:
+In `Resume - Aditya Saha.pdf`:
+Line 26: `COURSEJAM - An E-Commerece Website`
+Line 27: `Jun 2022 - Jul 2022`
+Parsed output generates two distinct entries in `projects`:
+1. `{"project": "COURSEJAM - An E-Commerece Website", "metadata": [], "description": []}`
+2. `{"project": "Jun 2022 - Jul 2022", "metadata": [...], "description": [...]}`
+
+Impact:
+Downstream systems see 6 projects instead of 3; the actual project titles have 0 bullets and 0 metrics, while phantom duration titles hold the descriptions. Quality analyzer reports empty descriptions for 50% of projects.
+
+Root cause:
+`_is_project_title()` does not test for date/duration patterns before classifying a capitalized line as a project title.
+
+Existing issue:
+New (related to R-009, but specific to intra-page duration lines).
+
+Recommended direction:
+Integrate a duration check: if `is_duration(line)` is true, attach it to the current project rather than starting a new project block.
+
+---
+
+ID: R-024
+Priority: P0
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Skills Parser / Project Parser (`skills_parser.py`, `project_parser.py`, `header_configs.py`)
+Category: Section Detection / Boundary Bleed
+
+Observed behavior:
+The resume uses `Technologies` as its skills section header. `Technologies` is not recognized as a skills section header in `header_configs.py` (it is only listed in `SKILL_CATEGORY_HEADERS`). Consequently, `extract_skills()` skips it, extracting 0 skills. Furthermore, because `Technologies` is not in `SECTION_HEADERS`, the preceding `PROJECTS` section fails to terminate and absorbs all technology categories, programming languages, and tools into the description and metadata of the last project (`Mobile Price Range Prediction`).
+
+Expected behavior:
+`Technologies` should be recognized as a valid skills section header when appearing as a primary section. `project_parser` should terminate cleanly at `Technologies`.
+
+Evidence:
+In `Abhinav_ML_Resume.pdf`:
+- `extract_skills()` returns `{"known": [], "unknown": []}`.
+- `completeness_analyzer` flags `"missing_required": ["skills"]`.
+- `quality_analyzer` flags `"issue": "missing_skills"`.
+- `Mobile Price Range Prediction` description contains:
+  `"...Technologies Programming Languages: Python, SQL Technologies: Pandas, NumPy, TensorFlow, Seaborn etc."`
+- `Mobile Price Range Prediction` metadata contains:
+  `"Tools: VS Code, Git, GitHub, G-Colab, Jupyter"`
+
+Impact:
+Total failure of skill extraction for resumes using "Technologies". Description corruption of candidate projects.
+
+Root cause:
+`SKILL` list in `header_configs.py` only contains `["SKILLS", "TECHNICAL SKILLS", "TECHNICAL SKILLS :"]`. `SECTION_HEADERS` lacks `TECHNOLOGIES`.
+
+Existing issue:
+New.
+
+Recommended direction:
+Add `TECHNOLOGIES` to `SECTION_HEADERS` and `SKILL` section configurations, ensuring section-level headers take precedence over category headers when appearing as standalone lines.
+
+---
+
+ID: R-025
+Priority: P0
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Experience Parser (`experience_parser.py`)
+Category: Incorrect Extraction / Entity Association
+
+Observed behavior:
+In `_parse_experience`, if a bullet point in the job description contains a role keyword (such as "engineering" matching `ENGINEER`), the parser mistakes the bullet line for the candidate's job role. It overwrites the true role and removes the bullet point from the description.
+
+Expected behavior:
+Bullet lines (starting with `•`, `-`, `*`) must strictly belong to the description and should never be evaluated as candidate job titles.
+
+Evidence:
+In `Abhinav_ML_Resume.pdf`:
+Candidate's real role: `Machine Learning Engineer, LTTS – Mysore, KA`
+Bullet 2 of description: `• Enhanced model accuracy by preprocessing time-series data, performing feature engineering, and optimizing hyperparameters.`
+Parsed output:
+`"role": "• Enhanced model accuracy by preprocessing time-series data, performing feature engineering, and optimizing"`
+The description array in the parsed output only has 2 bullets instead of 3, because bullet 2 was stolen as the role.
+In `experience_normalizer`, `"position"` is normalized to this hijacked bullet text.
+
+Impact:
+Destroys job title extraction. Candidate's position is recorded as a long sentence fragment, breaking title matching and recruiter displays. Experience description loses critical quantitative content.
+
+Root cause:
+In `_parse_experience` (lines 48-57), `if contains_keywords(line, ROLE_KEYWORDS)` is evaluated BEFORE checking `elif line.startswith(("•", "-", "*"))`.
+
+Existing issue:
+New.
+
+Recommended direction:
+Check for bullet prefixes first (`line.startswith(("•", "-", "*"))`) and immediately append to `description` before running any role keyword checks.
+
+---
+
+ID: R-026
+Priority: P1
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Education Parser (`education_parser.py`)
+Category: Information Loss / Entity Association
+
+Observed behavior:
+When degree and institution appear on the same line (e.g. `National Institute of Technology, Agartala, Bachelor of Technology in Electronics`), `_parse_education()` assigns the line to `institution` and sets `degree` to `None`.
+
+Expected behavior:
+The parser should recognize when a single line contains both an institution keyword and a degree keyword, splitting them into separate entities.
+
+Evidence:
+In `Abhinav_ML_Resume.pdf`:
+Line 3: `National Institute of Technology, Agartala, Bachelor of Technology in Electronics`
+Line 4: `and Communication Engineering`
+Parsed output:
+- `"institution": "National Institute of Technology, Agartala, Bachelor of Technology in Electronics"`
+- `"degree": null`
+- `"field": null`
+All 3 education entries in this resume result in `"degree": null`.
+`quality_analyzer` reports `"missing_degree"` on all education entries.
+
+Impact:
+Candidate appears to have no degrees on record. Education matching fails.
+
+Root cause:
+In `_parse_education()` (lines 42-45):
+```python
+if contains_keywords(line, INSTITUTION_KEYWORDS):
+    education["institution"] = line
+elif contains_keywords(line, DEGREE_KEYWORDS):
+    education["degree"] = line
+```
+Because the line matches `INSTITUTION_KEYWORDS`, the `elif` is never evaluated.
+
+Existing issue:
+New.
+
+Recommended direction:
+When a line contains both keywords, segment by delimiter (comma, dash) or keyword boundary to extract institution and degree independently.
+
+---
+
+ID: R-027
+Priority: P2
+Resume: `Resume - Aditya Saha.pdf`
+Component: Education Normalizer (`education_normalizer.py`)
+Category: Information Loss / Normalization
+
+Observed behavior:
+When CGPA is formatted as a fraction with a scale (e.g. `CGPA: 8.67/10.0`), `normalize_education()` fails to convert the score to float, catching `ValueError` silently and leaving `score: None`.
+
+Expected behavior:
+The parser should parse fractional grades, extracting the numerator as `score` and the denominator as the grade scale.
+
+Evidence:
+In `Resume - Aditya Saha.pdf`:
+Line: `CGPA: 8.67/10.0`
+`normalize_education()` evaluates `float("8.67/10.0")`, which raises `ValueError`.
+Output: `"score": null, "score_type": "CGPA"`.
+
+Impact:
+Candidate's 8.67 CGPA is lost from normalized education data.
+
+Root cause:
+`normalize_education()` assumes `score.split(":", 1)[-1].strip()` is a bare float.
+
+Existing issue:
+New.
+
+Recommended direction:
+Extract the float score using regex `r"(\d+(?:\.\d+)?)\s*(?:/\s*(\d+(?:\.\d+)?))?"`.
+
+---
+
+ID: R-028
+Priority: P2
+Resume: `Abhinav_ML_Resume.pdf`
+Component: Education Normalizer (`education_normalizer.py`)
+Category: Information Loss / Normalization
+
+Observed behavior:
+Education score lines prefixed with bullet markers (e.g. `• CGPA: 8.29` or `• Percentage: 73.80`) fail `score.lower().startswith("cgpa")` check, resulting in `"score_type": None`.
+
+Expected behavior:
+Score type detection should strip bullet markers and leading whitespace before inspecting the prefix.
+
+Evidence:
+In `Abhinav_ML_Resume.pdf`:
+Line: `• CGPA: 8.29` -> `"score": 8.29, "score_type": null`
+Line: `• Percentage: 73.80` -> `"score": 73.8, "score_type": null`
+
+Impact:
+Downstream consumers cannot determine whether a score is a CGPA or percentage, complicating minimum qualification checks.
+
+Root cause:
+`score.lower().startswith("cgpa")` does not strip leading bullet characters (`•`, `-`, `*`).
+
+Existing issue:
+New.
+
+Recommended direction:
+Strip leading bullets and whitespace: `score.lstrip("•-* \t").lower().startswith("cgpa")`.
+
+---
+
+ID: R-029
+Priority: P1
+Resume: `Resume - Aditya Saha.pdf`
+Component: Project Parser (`project_parser.py`)
+Category: Information Loss / Link Association
+
+Observed behavior:
+`_parse_projects()` associates hyperlink annotations with a project only if the link bounding box overlaps vertically with `project["_bbox"]` (the project title line). Links placed on subsequent lines (e.g. `Preview :- https://coursejam-aditya.netlify.app`) or plain-text URLs are completely ignored.
+
+Expected behavior:
+Links occurring anywhere within the project block's vertical span or appearing as text URLs in metadata lines should be associated with the project.
+
+Evidence:
+In `Resume - Aditya Saha.pdf`:
+Links exist in PDF annotations for `https://coursejam-aditya.netlify.app/`, `https://github.com/adityasaha39/coursejam`, `https://vstream-aditya.netlify.app/`, etc.
+Parsed output in `project_normalizer`:
+All metadata items are stored as `type: "text"` with values like `"Preview :- https://coursejam-aditya.netlify.app..."`. No structured `"type": "github"` or `"type": "website"` links are extracted.
+
+Impact:
+Candidate project links (GitHub repos, live demos) are lost from structured metadata, breaking candidate portfolio verification.
+
+Root cause:
+`_parse_projects()` strictly checks `_boxes_overlap_y(project["_bbox"], link["bbox"])` against only the title line bbox, ignoring all other lines in the project block.
+
+Existing issue:
+New.
+
+Recommended direction:
+Check link overlap against the bounding box of the entire project block (min Y to max Y), and extract URLs from plain text lines matching URL regexes.
+
+---
+
+ID: R-030
+Priority: P1
+Resume: `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Experience Normalizer (`experience_normalizer.py`)
+Category: Calculation Error / Downstream Contract
+
+Observed behavior:
+When a candidate is currently employed and their duration ends in `Present` (e.g. `May 2022 - Present`, `Sept 2024 – Present`), `_normalize_duration()` leaves `end_month` and `end_year` as `None`. In `calculate_total_experience()`, the check `if None in (start_month, end_month, start_year, end_year): continue` discards the entire interval, yielding `0` total experience months.
+
+Expected behavior:
+"Present" should be normalized to the current calendar month and year so active work experience is counted.
+
+Evidence:
+- `Resume - Aditya Saha.pdf`: One24 SDE Internship from May 2022 to Present (over 2 years). `total_experience_months` evaluates to `0`.
+- `Abhinav_ML_Resume.pdf`: LTTS ML Engineer from Sept 2024 to Present. `total_experience_months` evaluates to `0`.
+- In both resumes, `skill_experience` evaluates to `{}` because skill interval calculation also requires `end_year` and `end_month`.
+
+Impact:
+Active, experienced candidates appear to have 0 months of experience. ATS filters requiring minimum experience reject qualified candidates.
+
+Root cause:
+No handling for "Present" in `_normalize_duration()`, and strict `None` rejection in `calculate_total_experience()` and `calculate_skill_experience()`.
+
+Existing issue:
+New (critical calculation consequence of R-006).
+
+Recommended direction:
+Map "Present" to current date `(datetime.now().year, datetime.now().strftime("%B"))` during normalization.
+
+---
+
+ID: R-031
+Priority: P1
+Resume: `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Experience Normalizer (`experience_normalizer.py`)
+Category: Information Loss / Normalization
+
+Observed behavior:
+`_normalize_duration()` uses a regex that only matches full month names (`January|February|...`), completely failing on standard 3-letter or 4-letter abbreviations (`Jul`, `Mar`, `Sept`, `Dec`, `Nov`).
+
+Expected behavior:
+Month normalization should support standard abbreviations (`Jan`, `Feb`, `Mar`, `Apr`, `May`, `Jun`, `Jul`, `Aug`, `Sep`/`Sept`, `Oct`, `Nov`, `Dec`).
+
+Evidence:
+- `Resume - Aditya Saha.pdf`: `Jul 2017 - Mar 2019` -> `start_month: null, end_month: null`.
+- `Abhinav_ML_Resume.pdf`: `Sept 2024 – Present` -> `start_month: null, end_month: null`.
+
+Impact:
+Experience intervals cannot be computed even when month names are explicitly stated in the resume.
+
+Root cause:
+Hardcoded regex in `experience_normalizer.py`:
+`re.findall(r"January|February|March|April|May|June|July|August|September|October|November|December", duration, re.IGNORECASE)`
+
+Existing issue:
+New.
+
+Recommended direction:
+Expand regex to match abbreviations and map them to canonical month names using `MONTH_ALIASES`.
+
+---
+
+ID: R-032
+Priority: P2
+Resume: `HARSHIT_WEBDEV.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Project Parser (`project_parser.py`)
+Category: Side Effect / Data Corruption
+
+Observed behavior:
+`_extract_projects()` modifies input dictionary objects in `text_blocks` in-place using `curr_project[-1]["text"] += " " + text`. If `process_projects()` or any test pipeline calls extraction multiple times on the same `text_blocks` list, line text is repeatedly concatenated, producing duplicated sentences in descriptions.
+
+Expected behavior:
+Parsers should treat input data structures as immutable or create shallow/deep copies before modifying text fields.
+
+Evidence:
+When running `_extract_projects` followed by `process_projects` on the same `text_blocks`:
+`HARSHIT_WEBDEV.pdf`:
+`"• Developed a scalable and efficient full-stack blog application enabling users to create and explore blogs with 15 percent more efficiency. 15 percent more efficiency."`
+`Abhinav_ML_Resume.pdf`:
+`"• Improved cricket match insights by accurately predicting IPL scores. Developed a machine learning model utilizing regression techniques. utilizing regression techniques."`
+
+Impact:
+Subtle, hard-to-debug data corruption when `text_blocks` is reused in services, retries, or testing suites.
+
+Root cause:
+In-place dictionary modification: `curr_project[-1]["text"] += " " + text`.
+
+Existing issue:
+New.
+
+Recommended direction:
+Copy dictionary (`dict(curr_project[-1])`) before modifying text.
+
+---
+
+ID: R-033
+Priority: P2
+Resume: `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`
+Component: Section Detection (`header_configs.py`)
+Category: Information Loss / Generalization
+
+Observed behavior:
+Sections such as `INTERESTS`, `AREAS OF INTEREST`, or `ABOUT ME` are not registered in `SECTION_HEADERS`. In some cases, their content bleeds into preceding sections, or is completely unextracted without schema representation.
+
+Expected behavior:
+Non-standard sections should be safely recognized as section boundaries to prevent bleeding, and optionally captured under an `extracurriculars` or `profile` section.
+
+Evidence:
+- `Resume - Aditya Saha.pdf`: `INTERESTS` section (`Problem Solving`, `Working with Team`, `Bulding Real Life Products`) is unparsed.
+- `Abhinav_ML_Resume.pdf`: `ABOUT ME` / summary sections in similar formats risk bleeding if placed after projects.
+
+Impact:
+Information loss and potential section boundary contamination.
+
+Root cause:
+`SECTION_HEADERS` contains an overly narrow set of keywords.
+
+Existing issue:
+New (broadens R-016).
+
+Recommended direction:
+Expand `SECTION_HEADERS` to include `INTERESTS`, `AREAS OF INTEREST`, `ABOUT ME`, `SUMMARY`, `PROFILE`.
+
+---
+
+## Resume Generalization Summary
+
+### Audit Statistics
+- **Number of resumes tested:** 3 (`HARSHIT_WEBDEV.pdf`, `Resume - Aditya Saha.pdf`, `Abhinav_ML_Resume.pdf`)
+- **Number of existing issues reproduced & strengthened:** 9 (R-002, R-005, R-006, R-007, R-009, R-014, R-015, R-018, R-021)
+- **Number of new issues discovered:** 12 (R-022 through R-033)
+- **Total distinct issues now documented:** 33
+
+### Most Common Failure Categories
+1. **Section Boundary & Header Detection:** Narrow keyword lists (`SKILL`, `SECTION_HEADERS`) caused total failure on standard variations (e.g. `Technologies` causing 100% skill loss and project bleed in `Abhinav_ML_Resume.pdf`).
+2. **Project Boundary & Title Classification:** Relying on basic capitalization checks (`_is_project_title`) caused duration lines (`Jun 2022 - Jul 2022`) to fracture projects into empty shells and phantom duration records in `Resume - Aditya Saha.pdf`.
+3. **Date & Duration Parsing:** Rigid regexes expecting only `Month - Month, Year` or `YYYY - YYYY` failed on `Month YYYY - Month YYYY`, abbreviated months (`Jul`, `Sept`), and "Present", resulting in active jobs showing 0 months experience.
+4. **Tokenization & Delimiters:** Skill candidate extraction splitting only on `[,|/]` failed on conjunctions (`" and "`), discarding common skills like `React`, `SQL`, `MongoDB`, and `Node.js`.
+5. **Entity Association:** Assuming rigid line-relative positions (line `i-1` is company, role keywords only occur in titles) caused description bullets containing "engineering" to steal candidate job titles.
+
+### Parser Assumptions That Appear Resume-Specific
+1. **Assuming skills are always labeled `Skills:` or `Technical Skills:`**: Fails when labeled `Technologies`.
+2. **Assuming project title lines contain GitHub hyperlinks on the exact same vertical coordinate**: Fails when links appear on a `Preview :-` or `Link:` line below the title.
+3. **Assuming duration strings follow `Month - Month, Year` without a year after the first month**: Fails on standard `Month Year - Month Year`.
+4. **Assuming job titles and companies are on separate lines**: Fails when role, company, and location are comma-separated on a single line (`Machine Learning Engineer, LTTS – Mysore, KA`).
+5. **Assuming role keywords never appear in bullet descriptions**: Fails on bullets describing "feature engineering" or "developing".
+6. **Assuming institution and degree are never combined on the same line**: Fails on standard university + degree combined lines.
+
+### Information Consistently Lost Across Formats
+- **LinkedIn URLs:** Universal loss across 100% of tested resumes (hardcoded `None`).
+- **Active Employment Duration:** Ongoing jobs with "Present" calculate to 0 months experience.
+- **Skills connected by "and":** Conjunction skills (`MongoDB and SQL`) completely dropped from known skills.
+- **Achievements & Certifications:** 100% dropped from structured output across all resumes.
+- **Fractional CGPA scores (`X/10.0`):** Converted to `None` due to unhandled slash syntax.
+
+### Areas Requiring Contract / Schema Decisions Before Implementation
+1. **Active Employment Schema Contract:** Does the system calculate `total_experience_months` dynamically up to the current date when "Present" is encountered, or does the contract require an explicit `is_current: bool` field on experience entries?
+2. **Unstructured / Secondary Sections Schema:** Should `ACHIEVEMENTS`, `CERTIFICATIONS`, and `INTERESTS` be added as first-class fields in `resume_data` and OpenAPI schemas, or normalized under a generic `sections` dictionary?
+3. **Project Model Contract:** How should multi-link projects (live demo + GitHub + preview) be represented in the project schema (`metadata: list[dict]` vs explicit `links: {"github": str, "live": str}`) to prevent ambiguous text vs link storage?
+4. **Multi-Entity Line Parsing:** Does the contract support composite line extraction (splitting `Role, Company, Location`), and how should confidence scores or fallbacks be defined when delimiters are ambiguous?
