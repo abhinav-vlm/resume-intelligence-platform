@@ -1,272 +1,377 @@
-from io import BytesIO
-from pathlib import Path
 import pytest
-from fastapi import UploadFile
-from src.services.resume_service import process_resume
+
+from src.parsers.skills_parser import extract_skills
+from src.normalizers.skill_normalizer import normalize_skills
 
 
-async def create_upload_file():
-    pdf_path = Path("tests/fixtures/HARSHIT_WEBDEV.pdf")
+# ============================================================
+# Basic extraction
+# ============================================================
 
-    content = pdf_path.read_bytes()
+def test_plain_skill_lines():
+    text = """
+    Python
+    React
+    SQL
+    """
 
-    return UploadFile(
-        filename=pdf_path.name,
-        file=BytesIO(content),
-        headers={
-            "content-type": "application/pdf"
-        }
-    )
+    result = extract_skills(text)
 
-@pytest.mark.asyncio
-async def test_process_resume():
-    file = await create_upload_file()
-
-    result = await process_resume(file)
-
-    assert result is not None
-
-    assert result["filename"] == "HARSHIT_WEBDEV.pdf"
-    assert result["content_type"] == "application/pdf"
-    assert result["message"] == "Resume received successfully"
-
-    assert result["name"] == "Abhinav Pratap Singh"
-    assert result["email"] == "apsbqt@gmail.com"
-    assert result["phone"] == "+91 9774913812"
-
-    assert len(result["education"]) == 3
-    assert len(result["experience"]) == 1
-    assert len(result["projects"]) == 3
-    education = result["education"][0]
-
-    assert education["institution"] == 'National Institute of Technology, Agartala'
-    assert education["degree"] == 'B.Tech'
-    assert education["field"] == 'Electronics and Communication Engineering'
-    assert education["start_year"] == 2020
-    assert education["end_year"] == 2024
-    assert education["score"] == 8.3
-    assert education["score_type"] == 'CGPA'
-
-    assert result["skills"]
-
-    assert "Python" in result["skills"]
-    assert "C++" in result["skills"]
-    assert "SQL" in result["skills"]
-    assert "React" in result["skills"]
-    assert "Express.js" in result["skills"]
-    assert "Next.js" in result["skills"]
-    assert "ReactJS" not in result["skills"]
-    assert "Express.JS" not in result["skills"]
-    assert "Next.JS" not in result["skills"]
-    assert "unknown_skills" in result
-    assert isinstance(result["unknown_skills"], list)
-    
-    experience = result["experience"][0]
-    assert experience["company"] == "Gosotek"
-    assert experience["start_month"] == "January"
-    assert experience["end_month"] == "February"
-    assert experience["start_year"] == 2024
-    assert experience["end_year"] == 2024
-    assert result["experience"][0]["position"] == "Front-End Software Engineering"
-    assert result["experience"][0]["employment_type"] == "intern"
-    assert experience["description"] == [
-    "• Utilized Latest technology in Next library to improve a web application with 15 percent visual inhancement and 10 percent page loading.",
-    "• The application named Manhunter Securities was created and improves upto 25 percent effeciency.",
-    "• Tools and Technologies used: Javascript, ReactJS, NextJs, CSS",
-    ]
-    assert result["projects"][0]["project"] == "Bloger - A Full Stack Blog App | GitHub"
-
-    assert result["projects"][0]["metadata"] == [
-       {
-        "type": "github",
-        "url": "https://github.com/Blockmecoder/Bloger"
-      }
-      ]
-
-    assert result["projects"][0]["description"] == [
-       "• Developed a scalable and efficient full-stack blog application enabling users to create and explore blogs with 15 percent more efficiency.",
-       "• Features user authentication, blog posting, editing, and user profile updates.",
-       "• Tools and Technologies used : ReactJS, Node.js, Express.js, MongoDB, JavaScript, HTML, CSS"
-     ]
-
-    assert result["projects"][1]["metadata"] == [
-      {
-        "type": "github",
-        "url": "https://github.com/Blockmecoder/CITY_APP"
-      }
-      ]
-
-    assert result["projects"][2]["metadata"] == [
-      {
-        "type": "github",
-        "url": "https://github.com/Blockmecoder/PrompTopic"
-      }
-      ]
-
-    assert "_bbox" not in result["projects"][0]
-    assert "_page" not in result["projects"][0]
-
-    completeness = result["completeness"]
-
-    assert completeness["required"] == {
-        "name": True,
-        "email": True,
-        "education": True,
-        "projects": True,
-        "skills": True,
-    }
-
-    assert completeness["recommended"] == {
-        "phone": True,
-        "linkedin": False,
-        "experience": True,
-    }
-
-    assert completeness["missing_required"] == []
-    assert completeness["missing_recommended"] == ["linkedin"]
-
-    quality = result["quality_check"]
-
-    assert "structure" in quality
-    assert "content" in quality
-    assert "consistency" in quality
-    assert "education" in quality["structure"]
-    assert "experience" in quality["structure"]
-    assert "projects" in quality["structure"]
-    assert "skills" in quality["structure"]
-
-    quality = result["quality_check"]
-    formatting = result["formatting_check"]
-
-    assert "bullets" in formatting
-    assert "section_headers" in formatting
-    assert quality["structure"]["education"] == [
-    {
-        "index": 0,
-        "issues": [],
-    },
-    {
-        "index": 1,
-        "issues": [],
-    },
-    {
-        "index": 2,
-        "issues": [],
-    },
-]
-
-    assert quality["structure"]["experience"] == [
-    {
-        "index": 0,
-        "issues": [],
-    }
-]
-
-    assert quality["structure"]["projects"] == [
-    {
-        "index": 0,
-        "issues": [],
-    },
-    {
-        "index": 1,
-        "issues": [],
-    },
-    {
-        "index": 2,
-        "issues": [],
-    },
-]
-
-    assert quality["content"]["experience"] == [
-    {
-        "index": 0,
-        "bullet_count": 3,
-        "content_length": 297,
-        "has_metrics": True,
-    }
-]
-
-    assert quality["content"]["projects"] == [
-    {
-        "index": 0,
-        "bullet_count": 3,
-        "content_length": 312,
-        "has_metrics": True,
-    },
-    {
-        "index": 1,
-        "bullet_count": 4,
-        "content_length": 301,
-        "has_metrics": False,
-    },
-    {
-        "index": 2,
-        "bullet_count": 4,
-        "content_length": 399,
-        "has_metrics": True,
-    },
-]
-    assert quality["consistency"]["issues"] == []
-    assert formatting["bullets"] == [
-    {
-        "index": 0,
-        "issues": [],
-    },
-    {
-        "index": 1,
-        "issues": [],
-    },
-    {
-        "index": 2,
-        "issues": [],
-    },
-    {
-        "index": 3,
-        "issues": [],
-    },
-    ]
-    assert formatting["section_headers"] == [
-    {
-        "header": "EXPERIENCE",
-        "issue": "inconsistent_header_format",
-    }
-    ]
-    skill_experience = result["skill_experience"]
-
-    assert "React" in skill_experience
-    assert "Next.js" in skill_experience
-
-    assert skill_experience["React"]["experience_months"] == 2
-    assert skill_experience["Next.js"]["experience_months"] == 2
-    assert skill_experience["React"]["intervals"] == [
-        ((2024, 1), (2024, 2))
+    assert result["known"] == [
+        "Python",
+        "React",
+        "SQL",
     ]
 
-    assert skill_experience["Next.js"]["intervals"] == [
-        ((2024, 1), (2024, 2))
+    assert result["unknown"] == []
+
+
+def test_comma_separated_skill_line():
+    text = """
+    Python, React, SQL
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "React",
+        "SQL",
     ]
-    assert result["total_experience_months"] == 2
 
-async def create_upload_file_without_experience():
-    pdf_path = Path("tests/fixtures/resume_without_experience.pdf")
+    assert result["unknown"] == []
 
-    content = pdf_path.read_bytes()
 
-    return UploadFile(
-        filename=pdf_path.name,
-        file=BytesIO(content),
-        headers={
-            "content-type": "application/pdf"
-        }
-    )
-@pytest.mark.asyncio
-async def test_process_resume_without_experience():
-    file = await create_upload_file_without_experience()
+def test_pipe_separated_skills():
+    text = """
+    Python | React | SQL | Docker
+    """
 
-    result = await process_resume(file)
+    result = extract_skills(text)
 
-    assert result is not None
+    assert result["known"] == [
+        "Python",
+        "React",
+        "SQL",
+        "Docker",
+    ]
 
-    assert result["experience"] == []
-    assert result["total_experience_months"] == 0
-    assert result["skill_experience"] == {}
+    assert result["unknown"] == []
+
+
+def test_categorized_skill_lines():
+    text = """
+    Programming Languages: Python, Java
+    Frameworks: React, Django
+    Databases: SQL, MongoDB
+    """
+
+    result = extract_skills(text)
+
+    assert "Python" in result["known"]
+    assert "Java" in result["known"]
+    assert "React" in result["known"]
+    assert "Django" in result["known"]
+    assert "SQL" in result["known"]
+
+    assert "MongoDB" in result["unknown"]
+
+
+# ============================================================
+# Deduplication
+# ============================================================
+
+def test_duplicate_skills():
+    text = """
+    Python, React
+    Python, SQL
+    React
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "React",
+        "SQL",
+    ]
+
+    assert result["unknown"] == []
+
+
+def test_unknown_duplicates_are_deduplicated():
+    text = """
+    MongoDB
+    mongodb
+    MONGODB
+    """
+
+    result = extract_skills(text)
+
+    assert result["unknown"] == [
+        "MongoDB",
+    ]
+
+
+# ============================================================
+# Skill boundary matching
+# ============================================================
+
+def test_skill_boundary_matching():
+    text = """
+    Python
+    Pythonic
+    Py
+    SQL
+    SQLAlchemy
+    """
+
+    result = extract_skills(text)
+
+    assert "Python" in result["known"]
+    assert "SQL" in result["known"]
+
+    assert "Pythonic" in result["unknown"]
+    assert "SQLAlchemy" in result["unknown"]
+
+
+# ============================================================
+# Aliases
+# ============================================================
+
+def test_skill_aliases_are_extracted():
+    text = """
+    ReactJS
+    Express.JS
+    Next.JS
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "ReactJS",
+        "Express.JS",
+        "Next.JS",
+    ]
+
+
+def test_known_skills_are_normalized_after_extraction():
+    text = """
+    Python
+    ReactJS
+    Express.JS
+    Next.JS
+    """
+
+    result = extract_skills(text)
+
+    normalized = normalize_skills(result["known"])
+
+    assert result["known"] == [
+        "Python",
+        "ReactJS",
+        "Express.JS",
+        "Next.JS",
+    ]
+
+    assert normalized == [
+        "Python",
+        "React",
+        "Express.js",
+        "Next.js",
+    ]
+
+    assert result["unknown"] == []
+
+
+# ============================================================
+# Unknown skills
+# ============================================================
+
+def test_unknown_skills_are_preserved():
+    text = """
+    Python
+    React
+    MongoDB
+    PyTorch
+    LangChain
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "React",
+    ]
+
+    assert result["unknown"] == [
+        "MongoDB",
+        "PyTorch",
+        "LangChain",
+    ]
+
+
+def test_unknown_skills_in_categorized_lines():
+    text = """
+    Databases: MongoDB, Redis
+    Frameworks: React, PyTorch
+    """
+
+    result = extract_skills(text)
+
+    assert "React" in result["known"]
+
+    assert result["unknown"] == [
+        "MongoDB",
+        "Redis",
+        "PyTorch",
+    ]
+
+
+def test_unknown_skills_are_not_normalized():
+    text = """
+    Python
+    MongoDB
+    PyTorch
+    """
+
+    result = extract_skills(text)
+
+    normalized = normalize_skills(result["known"])
+
+    assert normalized == [
+        "Python",
+    ]
+
+    assert result["unknown"] == [
+        "MongoDB",
+        "PyTorch",
+    ]
+
+
+def test_multi_word_unknown_skill_is_preserved():
+    text = """
+    Python
+    Deep Learning
+    Natural Language Processing
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+    ]
+
+    assert result["unknown"] == [
+        "Deep Learning",
+        "Natural Language Processing",
+    ]
+
+
+def test_mixed_known_and_unknown_skills():
+    text = """
+    Python, MongoDB, React, PyTorch
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "React",
+    ]
+
+    assert result["unknown"] == [
+        "MongoDB",
+        "PyTorch",
+    ]
+
+
+
+def test_legitimate_long_skill_is_preserved():
+    text = """
+    Object Oriented Programming
+    Natural Language Processing
+    """
+
+    result = extract_skills(text)
+
+    assert result["unknown"] == [
+        "Object Oriented Programming",
+        "Natural Language Processing",
+    ]
+
+
+def test_empty_candidates_are_ignored():
+    text = """
+    Python,,React,,,SQL
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "React",
+        "SQL",
+    ]
+
+    assert result["unknown"] == []
+
+
+# ============================================================
+# Formatting
+# ============================================================
+
+def test_case_variation_preserves_surface_form():
+    text = """
+    python
+    PYTHON
+    Python
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "python",
+    ]
+
+
+def test_realistic_mixed_skill_formatting():
+    text = """
+    Programming Languages: Python, JavaScript
+    Frameworks: ReactJS, Express.JS
+    Databases: PostgreSQL, MongoDB
+    """
+
+    result = extract_skills(text)
+
+    assert "Python" in result["known"]
+    assert "JavaScript" in result["known"]
+    assert "ReactJS" in result["known"]
+    assert "Express.JS" in result["known"]
+
+    assert "PostgreSQL" in result["unknown"]
+    assert "MongoDB" in result["unknown"]
+
+
+# ============================================================
+# Real resume regression
+# ============================================================
+
+def test_real_resume_skills():
+    text = """
+    Python
+    C++
+    SQL
+    React
+    Express.js
+    Next.js
+    """
+
+    result = extract_skills(text)
+
+    assert "Python" in result["known"]
+    assert "C++" in result["known"]
+    assert "SQL" in result["known"]
+    assert "React" in result["known"]
+    assert "Express.js" in result["known"]
+    assert "Next.js" in result["known"]

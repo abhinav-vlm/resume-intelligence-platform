@@ -10,6 +10,7 @@ from ..parsers.skills_parser import extract_skills
 from ..parsers.education_parser import process_education
 from ..parsers.experience_parser import process_experience
 from ..parsers.project_parser import process_projects
+from ..parsers.section_detector import detect_sections
 
 from ..normalizers.project_normalizer import normalize_projects
 from ..normalizers.education_normalizer import normalize_education
@@ -37,13 +38,17 @@ async def process_resume(file:UploadFile):
 
     cleaned_text = clean_text(text)
 
+    sections = detect_sections(cleaned_text)
+
     email = extract_email(cleaned_text)
 
     phone = extract_phone(cleaned_text)
 
     name = extract_name(cleaned_text)
 
-    skill_data = extract_skills(cleaned_text)
+    skill_text = "\n".join(section["text"] for section in sections if section["name"] == "skills")
+
+    skill_data = extract_skills(skill_text)
     skills = normalize_skills(skill_data["known"])
     unknown_skills = skill_data["unknown"]
     education = process_education(cleaned_text)
@@ -67,6 +72,7 @@ async def process_resume(file:UploadFile):
         "email": email,
         "phone": phone,
         "linkedin": None,
+        "sections": sections,
         "education": education,
         "experience": experience,
         "projects": projects,
@@ -86,6 +92,7 @@ async def process_resume(file:UploadFile):
         "email":email,
         "phone":phone,
         "name":name,
+        "sections": sections,
         'education':education,
         'experience':experience,
         'projects':projects,

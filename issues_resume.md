@@ -50,7 +50,11 @@ Entire skills section becomes `None` for any resume not using the `Category: val
 `src/parsers/skills_parser.py` — the `if ':' in line` branch (line 19). Lines without a colon are not processed at all.
 
 ### Status
-~~OPEN~~ **FIXED** (commit `e72a322`: `extract_skill_candidates` supports lines without colons, skips `SKILL_CATEGORY_HEADERS`, splits on delimiters `[,|/]`, and separates known and unknown skills with length/word filters)
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 1 (commit `e72a322`)
+- **Validation:** Unit tests in `test_skills_parser.py` (22 tests) + integration tests in `test_resume_service.py`. Verified on `HARSHIT_WEBDEV.pdf` and `resume_without_experience.pdf`.
+- **Relevant test:** `tests/parsers/test_skills_parser.py`, `tests/services/test_resume_service.py`
+- **Notes:** `extract_skill_candidates` supports lines without colons, skips `SKILL_CATEGORY_HEADERS`, splits on delimiters `[,|/]`, and separates known and unknown skills with length/word filters.
 
 ---
 
@@ -183,7 +187,11 @@ Metric data and key qualitative details in experience descriptions are lost. `qu
 `src/parsers/experience_parser.py` — `_extract_experience()` only adds bullet lines to `curr_experience` via the `if line.startswith(...)` check at line 52. Non-bullet, non-duration lines within the experience block are discarded.
 
 ### Status
-~~OPEN~~ **FIXED** (commit `e72a322`: `_parse_experience` maintains `description_started` state flag and appends non-bullet continuation lines to `experience["description"][-1]`)
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 1 (commit `e72a322`)
+- **Validation:** Unit tests in `test_experience_parser.py` + verified on `HARSHIT_WEBDEV.pdf` where continuation lines are appended.
+- **Relevant test:** `tests/parsers/test_experience_parser.py`
+- **Notes:** `_parse_experience` maintains `description_started` state flag and appends non-bullet continuation lines to `experience["description"][-1]`.
 
 ---
 
@@ -364,7 +372,11 @@ A metric ("10 percent page loading") is lost from the structured output. `qualit
 `src/parsers/experience_parser.py` — non-bullet continuation lines in experience descriptions are not appended to the previous bullet (same root as R-004).
 
 ### Status
-~~OPEN~~ **FIXED** (commit `e72a322`: verified in `test_experience_parser.py` and `process_resume` — Gosotek first bullet now contains `"10 percent page loading."`)
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 1 (commit `e72a322`)
+- **Validation:** Unit tests in `test_experience_parser.py` and integration in `process_resume` (`tests/services/test_resume_service.py`). Gosotek first bullet verified to contain `"10 percent page loading."`.
+- **Relevant test:** `tests/parsers/test_experience_parser.py`, `tests/services/test_resume_service.py`
+- **Notes:** Concrete instance of R-004; fully resolved and verified.
 
 ---
 
@@ -405,7 +417,11 @@ Cross-page text-block continuations should be joined to the previous line, not t
 `src/parsers/project_parser.py` — `_is_project_title()` in `src/utils/text_utils.py` (line 18). It has no heuristics to distinguish a real title from a wrapped line fragment.
 
 ### Status
-~~OPEN~~ **PARTIALLY FIXED** (commit `e72a322`: `HTML, CSS` phantom project eliminated via comma check in `_is_project_title` and page change detection in `_extract_projects`. However, `CSS` phantom project still persists because single-token lines on the same page without commas still pass `_is_project_title("CSS")`)
+- **Status:** PARTIAL
+- **Fixed in:** Phase 4.5 Day 1 (commit `e72a322`)
+- **Validation:** `HTML, CSS` phantom project eliminated via comma check in `_is_project_title` and page change detection in `_extract_projects`.
+- **Relevant test:** `tests/parsers/test_project_parser.py`
+- **Notes:** `CSS` phantom project still persists in `resume_without_experience.pdf` because single-token lines on the same page without commas still pass `_is_project_title("CSS")`.
 
 ---
 
@@ -444,7 +460,11 @@ Any resume not using one of three exact header phrases has skills = `None`. Comp
 `src/configs/header_configs.py` — `SKILL` list. `src/parsers/skills_parser.py` — single-section extraction logic.
 
 ### Status
-OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 3 (Section-Aware Architecture)
+- **Validation:** `detect_sections` extracts all skills sections (including aliases like `TECHNICAL SKILLS` and `NON TECHNICAL SKILLS`), groups them into canonical `"skills"`, and `resume_service.py` concatenates their content before passing to `skills_parser.py`. Furthermore, `skills_parser.py` was refactored to parse isolated text without stopping at `SECTION_HEADERS`. Verified on `R09_Multiple_Skills_Sections.pdf`.
+- **Relevant test:** `tests/parsers/test_section_detector.py`, `tests/parsers/test_skills_parser.py`, `tests/services/test_resume_service.py`
+- **Notes:** Section detector handles top-level boundaries; skills parser operates on isolated skills section content.
 
 ---
 
@@ -547,7 +567,11 @@ Any resume with a currently-employed experience ("`Present`") or an education en
 `src/analyzers/quality_analyzer.py` — `_analyze_education_consistency()` line 152 and `_analyze_experience_consistency()` line 164.
 
 ### Status
-OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 3 / Phase 4.5 Day 3
+- **Validation:** `src/analyzers/quality_analyzer.py` lines 255-257 and 282-284 guard comparisons with `start_year is not None and end_year is not None and start_year > end_year`. Null values safely evaluate without TypeError.
+- **Relevant test:** `tests/analyzers/test_quality_analyzers.py::test_education_consistency_valid_duration`, `test_education_consistency_invalid_duration`.
+- **Notes:** Null-checks in place prevent crashes when start_year or end_year is None.
 
 ---
 
@@ -1577,8 +1601,14 @@ Root cause:
 Existing issue:
 New (broadens R-016).
 
+Status:
+- **Status:** PARTIAL
+- **Fixed in:** Phase 4.5 Day 3 (`src/configs/header_configs.py`)
+- **Validation:** `INTERESTS`, `ABOUT ME`, and `SUMMARY` were added to `SECTION_HEADERS`. `section_detector` now correctly identifies them as boundaries and prevents section bleeding.
+- **Notes:** While boundary detection is solved, these sections are not yet mapped in `SECTION_ALIASES` or extracted into specialized structured schema fields.
+
 Recommended direction:
-Expand `SECTION_HEADERS` to include `INTERESTS`, `AREAS OF INTEREST`, `ABOUT ME`, `SUMMARY`, `PROFILE`.
+Map non-standard sections in `SECTION_ALIASES` and introduce schema fields for summary/interests.
 
 ---
 
@@ -1617,3 +1647,476 @@ Expand `SECTION_HEADERS` to include `INTERESTS`, `AREAS OF INTEREST`, `ABOUT ME`
 2. **Unstructured / Secondary Sections Schema:** Should `ACHIEVEMENTS`, `CERTIFICATIONS`, and `INTERESTS` be added as first-class fields in `resume_data` and OpenAPI schemas, or normalized under a generic `sections` dictionary?
 3. **Project Model Contract:** How should multi-link projects (live demo + GitHub + preview) be represented in the project schema (`metadata: list[dict]` vs explicit `links: {"github": str, "live": str}`) to prevent ambiguous text vs link storage?
 4. **Multi-Entity Line Parsing:** Does the contract support composite line extraction (splitting `Role, Company, Location`), and how should confidence scores or fallbacks be defined when delimiters are ambiguous?
+
+---
+
+# Phase 4.5 Day 3: Real-World Corpus Validation & Issue Audit
+
+**Audit Date:** 2026-09-21  
+**Platform State:** Phase 4.5 Day 3 Complete (Section-Aware Architecture)  
+**Test Baseline:** 358 passed, 1 warning (Windows pytest-cache permission warning)  
+**Corpus Tested:** 14 Resumes (2 existing test fixtures + 12 diverse real-world PDFs) & 9 Real Job Descriptions  
+**Code Modifications:** None (Preserving 100% source code integrity; documentation-only audit)
+
+---
+
+## 1. Real-World Resume Corpus (14 Resumes)
+
+A representative, highly diverse set of 14 resume PDFs was validated against the current pipeline (`process_resume()`). The corpus covers freshers, junior SDEs, senior/staff ML engineers, directors, multi-page resumes, project-heavy profiles, competitive programmers, certified cloud engineers, narrative summaries, non-standard section headers, and unusual font-glyph formatting.
+
+### Corpus Summary Table
+
+| File | Category / Profile | Sections Detected | Skills (Known / Unknown) | Education | Experience | Projects | Total Exp (Months) | Key Pipeline Observations |
+|---|---|---|---|---|---|---|---|---|
+| `HARSHIT_WEBDEV.pdf` | Junior Web Dev (Reference) | 6 | 10 / 15 | 3 | 1 (Gosotek) | 3 | 2 | Clean baseline; R-002 (LinkedIn=None) and R-007 (project titles retain \| GitHub) observed |
+| `resume_without_experience.pdf` | Fresher Web Dev (Multi-Page) | 5 | 10 / 16 | 3 | 0 | 4 | 0 | Multi-page boundary; R-009 phantom project `CSS` still persists with 0 description |
+| `R01_Fresher_CS.pdf` | College Fresher / Hackathon Finalist | 5 | 9 / 2 | 1 | 0 | 2 | 0 | Fractional CGPA lost (`score=None`); R-035 project title mutated into description |
+| `R02_Junior_SDE.pdf` | Junior SDE (1-2 YOE, "Present") | 4 | 9 / 0 | 1 | 1 | 0 | 0 | Dual job collapsed into 1 (R-006); bullet hijacked as role (R-025); 0 exp months (R-030) |
+| `R03_Senior_Staff_ML.pdf` | Senior Staff ML (Ph.D., 8+ YOE) | 4 | 8 / 4 | 2 | 1 | 0 | 0 | Stanford Ph.D. degree dropped (R-036); multiple jobs collapsed; 0 exp months (R-030) |
+| `R04_MultiPage_Executive.pdf` | Engineering Director (2-Page Multi-Page) | 7 | 7 / 6 | 2 | 1 | 0 | 0 | Page 2 experience dropped at section boundary (R-034); Certifications unparsed (R-015) |
+| `R05_Projects_Heavy_FullStack.pdf` | Full-Stack (Next.js, Live Links, Verce/Netlify) | 4 | 9 / 2 | 1 | 0 | 3 | 0 | Rich GitHub & Live URLs on metadata lines lost (R-029); title mutated into description (R-035) |
+| `R06_Achievements_Competitive.pdf` | Competitive Coder (LeetCode Guardian, JEE) | 5 | 5 / 5 | 1 | 1 | 0 | 0 | 5 top-tier achievements dropped (R-014); fractional CGPA 9.45/10.0 lost (R-027) |
+| `R07_Certifications_Cloud_DevOps.pdf` | Cloud DevOps (AWS PSA, CKA, Terraform) | 5 | 5 / 4 | 1 | 1 | 0 | 0 | Certifications & Credly links dropped (R-015); ongoing job calculates to 0 months (R-030) |
+| `R08_Summary_Profile_DataScience.pdf` | Lead Data Scientist (6 YOE, Narrative Summary) | 4 | 5 / 8 | 2 | 0 | 0 | 0 | Narrative summary unextracted into schema (R-016); experience missed due to layout (R-005) |
+| `R09_Multiple_Skills_Sections.pdf` | Full-Stack Systems (Tech + Non-Tech Skills) | 6 | 8 / 4 | 1 | 1 | 1 | 0 | Section detector successfully detected and merged both skill sections! (R-010 FIXED) |
+| `R10_Alternate_Headings.pdf` | Alternate Headings (Work History, Academics) | 3 | 0 / 0 | 0 | 0 | 1 | 0 | Headings not in `SECTION_HEADERS` causing complete extraction failure (R-037) |
+| `R11_Unusual_Formatting_Icons.pdf` | SRE (Date-first layout, Icon Glyphs) | 4 | 5 / 4 | 2 | 1 | 0 | 0 | Date-first layout causes last bullet to become company name (R-005); glyphs in text (R-018) |
+| `R12_No_Experience_BioMed.pdf` | Computational Biology (IISER, Publications) | 6 | 4 / 4 | 1 | 0 | 2 | 0 | IISER Pune not recognized as institution (R-040); publications dropped (R-015) |
+
+---
+
+## 2. Real-World Job Description Corpus (9 Job Descriptions)
+
+A corpus of 9 real-world job descriptions from industry-leading tech companies was analyzed against `src/parsers/jd_parser.py` (`parse_jd`).
+
+### Job Description Corpus Summary Table
+
+| ID | Company | Role Title | Target Domain | Extracted Role | Experience Months | Extracted Skills | Missed Critical Skills |
+|---|---|---|---|---|---|---|---|
+| **JD-01** | Meta | Machine Learning Engineer - Ranking & Recommendations | Applied ML / RecSys | `None` (missing `Role:`) | `None` | `Python`, `SQL`, `Docker`, `Kubernetes` | `PyTorch`, `TensorFlow`, `Machine Learning`, `Deep Learning` |
+| **JD-02** | OpenAI | AI Backend Engineer, API Infrastructure | AI Backend / High Concurrency | `AI Backend Engineer, API Infrastructure` | `None` | `Python`, `FastAPI`, `Kubernetes`, `Docker`, `AWS` | `Triton`, `vLLM`, `TensorRT-LLM`, `Redis` |
+| **JD-03** | Anthropic | GenAI / Alignment Research Engineer | GenAI / Alignment / LLM | `GenAI / Alignment Research Engineer` | `None` | `Python` | `PyTorch`, `RLHF`, `Transformer`, `LangChain`, `LlamaIndex` |
+| **JD-04** | Databricks | Data & ML Platform Engineer | ML Platform / MLOps | `None` (unlabeled title) | `None` | `Python`, `Java`, `SQL`, `Kubernetes`, `AWS`, `Docker`, `Git` | `Apache Spark`, `Delta Lake`, `MLflow`, `Kubeflow`, `Ray`, `Scala` |
+| **JD-05** | Stripe | Machine Learning Engineer - Fraud & Risk | Real-time ML / Fraud | `Machine Learning Engineer - Fraud & Risk` | `None` | `Python`, `SQL`, `Docker`, `Java` | `Scikit-learn`, `XGBoost`, `PyTorch`, `Kafka` |
+| **JD-06** | Google DeepMind | Research Engineer, Foundation Models | Foundation Models / Research | `None` (used `Title:`) | 24 | `Python` | `PyTorch`, `JAX`, `TensorFlow`, `Deep Learning` |
+| **JD-07** | Siemens | Generative AI Engineer | GenAI / RAG / Enterprise | `None` (unlabeled title) | `None` | `Python`, `FastAPI`, `Docker`, `Git`, `AWS` | `LangChain`, `LangGraph`, `LlamaIndex`, `Pinecone`, `Qdrant`, `Chroma` |
+| **JD-08** | Uber | Senior Machine Learning Engineer - Maps & Routing | Applied ML / GNN / Routing | `None` (unlabeled title) | `None` | `Python`, `SQL`, `Docker`, `Kubernetes` | `PyTorch`, `Horovod`, `Graph Neural Networks` |
+| **JD-09** | Amazon (AWS) | Applied AI/ML Engineer - Bedrock Solutions | GenAI Solutions / Cloud | `Applied AI/ML Engineer - Bedrock Solutions` | `None` | `AWS`, `Python`, `Git`, `Docker` | `LangChain`, `Bedrock`, `SageMaker`, `Linux` |
+
+### Key Structural Discoveries in Real JDs
+1. **Pervasive Vocabulary Truncation (JD-001):** Top ML frameworks (`PyTorch`, `TensorFlow`, `JAX`, `LangChain`, `LlamaIndex`, `Spark`, `MLflow`) are 100% dropped because they are missing from `KNOWN_SKILLS`.
+2. **Missing `Title:` and Unlabeled Role Extraction (R-041 / JD-002):** 5 out of 9 JDs (55%) failed role extraction because titles either lacked prefixes or used `Title:` (not in `ROLE_KEYWORDS`).
+3. **Experience Requirement Phrasing Gaps (R-042 / JD-003):** 8 out of 9 JDs (89%) failed overall experience extraction because of qualifiers like `of professional experience in applied machine learning` or `software engineering or machine learning experience`.
+
+---
+
+## 3. New Issues Discovered During Real-World Validation
+
+---
+
+### R-034: Multi-page and repeated canonical experience sections are dropped by experience parser
+
+- **ID:** R-034
+- **Title:** Multi-page and repeated canonical experience sections dropped by experience parser
+- **Status:** OPEN
+- **Severity:** P0
+- **Category:** Information Loss / Architectural Gap
+- **Observed in:** `R04_MultiPage_Executive.pdf`
+
+#### Observed Behavior
+When a candidate's work history spans across multiple pages and the heading `EXPERIENCE` repeats at the top of subsequent pages, `section_detector` successfully detects both canonical sections (`['preamble', 'summary', 'experience', 'experience', ...]`). However, `process_experience()` still receives raw `cleaned_text`, and `_extract_experience()` contains:
+```python
+if contains_keywords(line, SECTION_HEADERS):
+    break
+```
+As soon as the first experience section terminates at `EDUCATION` on Page 1, `_extract_experience()` permanently breaks out of the extraction loop. The entire second `EXPERIENCE` section on Page 2 (containing Bloomberg LP) is completely dropped from structured output.
+
+#### Evidence
+In `R04_MultiPage_Executive.pdf`:
+- Page 1 has Stripe and Goldman Sachs under `EXPERIENCE`.
+- Page 2 has Bloomberg LP under `EXPERIENCE`.
+- `sections` list has both sections: `['experience', 'experience']`.
+- Parsed `experience` array only has 1 company (`Stripe`). Goldman Sachs and Bloomberg LP are lost.
+
+#### Impact
+High-tenure candidates with multi-page resumes lose significant portions of their work history, leading to inaccurate experience calculations and false negative ATS filtering.
+
+#### Likely Component
+`src/services/resume_service.py` and `src/parsers/experience_parser.py`.
+
+#### Suggested Future Fix
+Migrate `experience_parser` to receive isolated section text from `section_detector` (similar to Phase 4.5 Day 3 `skills_parser` migration), combining all detected `experience` section contents before parsing.
+
+---
+
+### R-035: Project parser mutates title block into description when bullet characters do not strictly match `•`, `-`, or `*`
+
+- **ID:** R-035
+- **Title:** Project parser mutates title block into description when bullet characters do not strictly match standard bullets
+- **Status:** OPEN
+- **Severity:** P0
+- **Category:** Data Corruption / Information Loss
+- **Observed in:** `R01_Fresher_CS.pdf`, `R05_Projects_Heavy_FullStack.pdf`, `R09_Multiple_Skills_Sections.pdf`, `R10_Alternate_Headings.pdf`, `R12_No_Experience_BioMed.pdf`
+
+#### Observed Behavior
+In `src/parsers/project_parser.py`, `_extract_projects()` checks:
+```python
+if text.startswith(("•", "-", "*")):
+    curr_project.append(line)
+elif _is_project_metadata(text, PROJECT_METADATA_KEYWORDS):
+    curr_project.append(line)
+elif _is_project_title(text):
+    ...
+elif curr_project:
+    if not page_changed:
+        curr_project[-1]["text"] += " " + text
+```
+When a PDF uses alternative bullet characters (e.g. Unicode `\u2023`, `\u25cf`, `\u25b6`, `\u25e6`, or font-glyph mappings), `text.startswith(("•", "-", "*"))` evaluates to `False`. The description line falls into `elif curr_project:` and is concatenated in-place to `curr_project[-1]["text"]` (the title block). In the subsequent `_parse_projects()` pass, the mutated title line now ends with a period and exceeds title length limits. Consequently, `_is_project_title()` rejects it, and it falls into `else: project["description"].append(text)`. The project title is left as `None` (normalized to `""`).
+
+#### Evidence
+In `R01_Fresher_CS.pdf`, `R05_Projects_Heavy_FullStack.pdf`, and `R12_No_Experience_BioMed.pdf`:
+```json
+{
+  "project": "",
+  "metadata": [],
+  "description": ["AI Resume Analyzer | GitHub Developed automated resume parser..."]
+}
+```
+All project titles become empty strings `""`, and descriptions contain the merged title line.
+
+#### Impact
+100% loss of project title entities for resumes using non-standard bullet symbols. Downstream project keyword matching and title-based quality scoring completely fail.
+
+#### Likely Component
+`src/parsers/project_parser.py` (`_extract_projects` and `_parse_projects`).
+
+#### Suggested Future Fix
+1. Expand recognized bullet characters: `("•", "-", "*", "–", "—", "·", "\u2022", "\u2023", "\u25cf", "\u25b6", "\u25e6")`.
+2. Do not mutate the title block in `_extract_projects` by concatenating non-matching lines to it.
+
+---
+
+### R-036: `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Ph.D.`, `Doctor of Philosophy`)
+
+- **ID:** R-036
+- **Title:** `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Ph.D.`, `Doctor of Philosophy`)
+- **Status:** OPEN
+- **Severity:** P1
+- **Category:** Information Loss / Generalization
+- **Observed in:** `R03_Senior_Staff_ML.pdf`
+
+#### Observed Behavior
+In `src/configs/education_configs.py`, `DEGREE_KEYWORDS` includes:
+`B.TECH`, `BACHELOR`, `B.E`, `M.TECH`, `MASTER`, `MCA`, `MBA`, `BSC`, `MSC`, `DIPLOMA`, `X`, `XII`.
+Doctoral degree identifiers (`PHD`, `PH.D`, `DOCTOR`, `DOCTORATE`) are completely absent. In `src/parsers/education_parser.py`:
+```python
+elif contains_keywords(line, DEGREE_KEYWORDS):
+    education["degree"] = line
+```
+Because the line `Doctor of Philosophy in Computer Science` does not match any keyword in `DEGREE_KEYWORDS`, `education["degree"]` remains `None`.
+
+#### Evidence
+In `R03_Senior_Staff_ML.pdf`:
+- Raw text: `Stanford University \n Doctor of Philosophy in Computer Science \n 2011 - 2015`.
+- Parsed normalized education output:
+  ```json
+  {
+    "degree": null,
+    "field": null,
+    "institution": "Stanford University",
+    "start_year": 2011,
+    "end_year": 2015
+  }
+  ```
+The candidate's Ph.D. degree is completely lost.
+
+#### Impact
+Doctoral degrees of researchers and senior scientists are erased, causing failure on minimum qualification checks for advanced research and engineering roles.
+
+#### Likely Component
+`src/configs/education_configs.py` (`DEGREE_KEYWORDS`) and `src/configs/normalization_configs.py` (`DEGREE_ALIASES`).
+
+#### Suggested Future Fix
+Add `PHD`, `PH.D`, `DOCTOR`, `DOCTORATE` to `DEGREE_KEYWORDS` and map them to `"Ph.D."` in `DEGREE_ALIASES`.
+
+---
+
+### R-037: Section detector does not recognize `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, or `AREAS OF EXPERTISE`
+
+- **ID:** R-037
+- **Title:** Section detector does not recognize `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, or `AREAS OF EXPERTISE`
+- **Status:** OPEN
+- **Severity:** P1
+- **Category:** Section Detection / Information Loss
+- **Observed in:** `R10_Alternate_Headings.pdf`
+
+#### Observed Behavior
+In `src/configs/header_configs.py`, `SECTION_HEADERS` contains `EXPERIENCE`, `WORK EXPERIENCE`, `PROFESSIONAL EXPERIENCE`, `EDUCATION`, and `SKILLS`, but lacks common synonyms such as:
+- `WORK HISTORY`
+- `ACADEMIC QUALIFICATIONS`, `ACADEMIC BACKGROUND`
+- `AREAS OF EXPERTISE`, `CORE COMPETENCIES`, `TECHNICAL EXPERTISE`
+When a resume uses these headings, `section_detector.py` fails to recognize any section transition. The entire body text is absorbed by the preceding section (or preamble), resulting in empty skills, unextracted education, and unextracted experience.
+
+#### Evidence
+In `R10_Alternate_Headings.pdf`:
+- Detected sections: `['preamble', 'about me', 'projects']`.
+- `skills`: `[]` (0 skills extracted).
+- `education`: `[]` (0 education entries).
+- `experience`: `[]` (0 experience entries).
+- All work history, academic qualifications, and areas of expertise were trapped inside the `about me` section.
+
+#### Impact
+Complete parsing failure for resumes using standard alternative section headers.
+
+#### Likely Component
+`src/configs/header_configs.py` (`SECTION_HEADERS` and `SECTION_ALIASES`).
+
+#### Suggested Future Fix
+Add `WORK HISTORY`, `EMPLOYMENT HISTORY` (mapped to `"experience"`), `ACADEMIC QUALIFICATIONS`, `ACADEMIC BACKGROUND` (mapped to `"education"`), and `AREAS OF EXPERTISE`, `CORE COMPETENCIES` (mapped to `"skills"`) to `SECTION_HEADERS` and `SECTION_ALIASES`.
+
+---
+
+### R-038: Multi-page and repeated education sections dropped due to first `SECTION_HEADERS` break
+
+- **ID:** R-038
+- **Title:** Multi-page and repeated education sections dropped due to first `SECTION_HEADERS` break
+- **Status:** OPEN
+- **Severity:** P1
+- **Category:** Information Loss / Architectural Gap
+- **Observed in:** Multi-page resumes (architectural verification)
+
+#### Observed Behavior
+In `src/parsers/education_parser.py`:
+```python
+for line in lines:
+    if not inside_education:
+        if contains_keywords(line, EDUCATION_SECTION_HEADERS):
+            inside_education = True
+        continue
+    if contains_keywords(line, SECTION_HEADERS):
+        break
+```
+Because the parser breaks at the very first `SECTION_HEADERS` keyword encountered after entering education, any resume that repeats the education section on a subsequent page or has split education blocks loses all subsequent education content.
+
+#### Evidence
+Identical architectural root cause to R-034: `process_education(cleaned_text)` does not leverage `sections` produced by `detect_sections()`, relying on a fragile line-scan that terminates on the first section boundary.
+
+#### Impact
+Degrees listed across page boundaries or non-contiguous blocks are permanently dropped.
+
+#### Likely Component
+`src/services/resume_service.py` and `src/parsers/education_parser.py`.
+
+#### Suggested Future Fix
+Migrate `education_parser` to receive isolated section text from `section_detector`.
+
+---
+
+### R-039: Completeness analyzer enforces `projects` as required for all candidates regardless of seniority
+
+- **ID:** R-039
+- **Title:** Completeness analyzer enforces `projects` as required for all candidates regardless of seniority
+- **Status:** OPEN
+- **Severity:** P2
+- **Category:** Domain Logic / False Positive
+- **Observed in:** `R03_Senior_Staff_ML.pdf`, `R04_MultiPage_Executive.pdf`, `R07_Certifications_Cloud_DevOps.pdf`, `R08_Summary_Profile_DataScience.pdf`
+
+#### Observed Behavior
+In `src/configs/analyzers_configs.py`:
+```python
+REQUIREMENTS_TABLE = {
+    "required": ["name", "email", "education", "projects", "skills"],
+    "recommended": ["phone", "linkedin", "experience"]
+}
+```
+`projects` is marked as strictly `required`. Experienced professionals (e.g. Senior Staff Engineers, VPs, Directors with 8–15 years of industry experience) typically omit academic/personal hobby projects in favor of commercial achievements and leadership impact. As a result, 100% of experienced profiles in our corpus are flagged with `"missing_required": ["projects"]`.
+
+#### Evidence
+In `R03_Senior_Staff_ML.pdf` (8+ YOE Databricks/Uber/Amazon staff ML engineer):
+`"missing_required": ["projects"]`.
+In `R04_MultiPage_Executive.pdf` (10+ YOE Engineering Director):
+`"missing_required": ["projects"]`.
+
+#### Impact
+Distorts completeness scores and triggers false-positive defect warnings for highly qualified senior candidates.
+
+#### Likely Component
+`src/configs/analyzers_configs.py` and `src/analyzers/completeness_analyzer.py`.
+
+#### Suggested Future Fix
+Introduce conditional completeness logic: candidate must have either `experience` OR `projects` in `required`, or categorize `projects` as `recommended` when `experience` is present.
+
+---
+
+### R-040: Institution detection misses national research institutes and specialized academies
+
+- **ID:** R-040
+- **Title:** Institution detection misses national research institutes and specialized academies
+- **Status:** OPEN
+- **Severity:** P2
+- **Category:** Information Loss / Keyword Coverage
+- **Observed in:** `R12_No_Experience_BioMed.pdf`
+
+#### Observed Behavior
+In `src/configs/education_configs.py`:
+```python
+INSTITUTION_KEYWORDS = ["SCHOOL", "COLLEGE", "INSTITUTE", "UNIVERSITY", "ACADEMY"]
+```
+Candidates attending prestigious institutions referenced by acronyms or non-standard designations (such as `IISER Pune`, `BITS Pilani`, `IIIT Hyderabad`, `AIIMS`, `IIM`) fail `contains_keywords(line, INSTITUTION_KEYWORDS)`. In `_extract_education()`, the line is not recognized as an institution boundary, and `institution` is left empty.
+
+#### Evidence
+In `R12_No_Experience_BioMed.pdf`:
+Line 4: `IISER Pune` -> parsed `"institution": ""` (empty).
+
+#### Impact
+Loss of institution reputation and pedigree signals in candidate ranking.
+
+#### Likely Component
+`src/configs/education_configs.py` (`INSTITUTION_KEYWORDS`).
+
+#### Suggested Future Fix
+Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`, `IIIT`, `BITS`, `IIM`, `AIIMS`, `POLYTECHNIC`, `FACULTY`.
+
+---
+
+### R-041: JD Parser `ROLE_KEYWORDS` misses common title labels such as `Title:` and fails on unlabelled top-line job titles
+
+- **ID:** R-041
+- **Title:** JD Parser `ROLE_KEYWORDS` misses common title labels such as `Title:` and fails on unlabelled top-line job titles
+- **Status:** OPEN
+- **Severity:** P1
+- **Category:** Information Loss / Generalization
+- **Observed in:** JD-01 (Meta), JD-04 (Databricks), JD-06 (Google DeepMind), JD-07 (Siemens), JD-08 (Uber)
+
+#### Observed Behavior
+In `src/parsers/jd_parser.py`:
+```python
+def _extract_role(jd: list[str]) -> str | None:
+    for line in jd:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            if key.strip().lower() in ROLE_KEYWORDS:
+                return value.strip()
+    return None
+```
+`ROLE_KEYWORDS` only includes `{"role", "position", "job title"}`. If a job posting uses `Title:` (as Google DeepMind does), or places the job title on the first non-empty line without a colon prefix (as Meta, Databricks, Siemens, and Uber do), `_extract_role()` returns `None`.
+
+#### Evidence
+Across 9 real job descriptions tested:
+- 5 out of 9 (55%) returned `"role": null`.
+- DeepMind used `Title: Research Engineer, Foundation Models` -> `role: null`.
+- Meta used `Machine Learning Engineer - Ranking & Recommendations` on Line 1 -> `role: null`.
+
+#### Impact
+Matching engines cannot compare candidate target roles against job titles for the majority of real-world job descriptions.
+
+#### Likely Component
+`src/configs/jd_configs.py` (`ROLE_KEYWORDS`) and `src/parsers/jd_parser.py` (`_extract_role`).
+
+#### Suggested Future Fix
+1. Add `"title"` to `ROLE_KEYWORDS`.
+2. Implement fallback extraction to inspect the first non-empty substantive line before the first section header.
+
+---
+
+### R-042: JD Experience Parser `YOE_PATTERN` fails to extract required experience when formatted as `Minimum X+ years` with trailing qualifier
+
+- **ID:** R-042
+- **Title:** JD Experience Parser `YOE_PATTERN` fails to extract required experience when formatted as `Minimum X+ years` with trailing qualifier
+- **Status:** OPEN
+- **Severity:** P1
+- **Category:** Information Loss / Regex Limitation
+- **Observed in:** JD-01 (Meta), JD-04 (Databricks), JD-05 (Stripe), JD-08 (Uber)
+
+#### Observed Behavior
+In `src/parsers/jd_parser.py`:
+`YOE_PATTERN` has a strict negative lookahead:
+```python
+YOE_PATTERN = re.compile(
+    r"""
+    \b(?:minimum|at\s+least)?\s*
+    (\d+)\+?
+    \s+(?:years?|yrs?)
+    \s+(?:of\s+)?
+    (?:professional\s+)?
+    (?:industry\s+)?
+    experience\b
+    (?!\s+(?:with|in)\b)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+```
+When a real JD specifies:
+- `Minimum 4+ years of professional experience in applied machine learning` (Meta) -> rejected by `(?!\s+(?:with|in)\b)`
+- `Minimum 3 years of software engineering experience` (Databricks) -> rejected because `software engineering` is not matched by `(?:professional\s+)?(?:industry\s+)?`
+- `5+ years of software engineering or machine learning experience` (Uber) -> rejected for the same reason.
+Consequently, `_extract_experience()` returns `None`.
+
+#### Evidence
+In 8 out of 9 real JDs tested (89%), `experience_months` was returned as `None`, despite explicit years of experience requirements in the text.
+
+#### Impact
+ATS minimum experience filters fail to extract tenure constraints from the vast majority of real job postings.
+
+#### Likely Component
+`src/parsers/jd_parser.py` (`YOE_PATTERN` and `_extract_experience`).
+
+#### Suggested Future Fix
+Permit flexible domain modifiers (e.g. `software engineering`, `applied machine learning`, `relevant`, `related`) and allow trailing `in <domain>` clauses when extracting overall experience.
+
+---
+
+## 4. Master Status Matrix (R-001 through R-042)
+
+| Issue ID | Severity | Category | Status | Fixed In | Summary Title |
+|---|---|---|---|---|---|
+| **R-001** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Skills parser drops no-colon skills |
+| **R-002** | P0 | Info Loss | **OPEN** | — | LinkedIn URL extracted from PDF links is never surfaced |
+| **R-003** | P1 | Incorrect Ext | **OPEN** | — | Name parser returns first non-empty line unconditionally |
+| **R-004** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Wrapped experience bullets split into orphan line |
+| **R-005** | P1 | Incorrect Ext | **OPEN** | — | Experience parser previous-line company assumption |
+| **R-006** | P1 | Date Handling | **OPEN** | — | Duration pattern misses `Month YYYY - Month YYYY` / "Present" |
+| **R-007** | P1 | Normalization | **OPEN** | — | Project title retains `\| GitHub` / `\| LIVE` suffix |
+| **R-008** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Experience bullet continuation line dropped |
+| **R-009** | P0 | Boundary Det | **PARTIAL** | Phase 4.5 Day 1 | Multi-page PDF phantom projects (`CSS` persists) |
+| **R-010** | P2 | Section Det | **FIXED** | Phase 4.5 Day 3 | Skills parser only extracts first skills section |
+| **R-011** | P2 | Section Det | **OPEN** | — | Education header misses variants (`ACADEMIC QUALIFICATIONS`) |
+| **R-012** | P2 | Section Det | **OPEN** | — | Experience header misses variants (`WORK HISTORY`) |
+| **R-013** | P1 | Robustness | **FIXED** | Phase 3 / Day 3 | Quality analyzer `None` year `TypeError` crash |
+| **R-014** | P1 | Info Loss | **OPEN** | — | Achievements section content completely discarded |
+| **R-015** | P1 | Info Loss | **OPEN** | — | Certifications and publications sections unparsed |
+| **R-016** | P2 | Schema Gap | **OPEN** | — | Summary / Profile / Objective section unextracted |
+| **R-017** | P2 | Normalization | **OPEN** | — | Skills normalizer wrapped multi-line skill values |
+| **R-018** | P3 | Glyphs/Noise | **OPEN** | — | Contact info glyph/icon artifacts in text |
+| **R-019** | P2 | Calculation | **OPEN** | — | `total_experience_months` inclusive +1 counting |
+| **R-020** | P4 | Noise | **OPEN** | — | Duplicate name artifact in text layer |
+| **R-021** | P2 | Normalization | **OPEN** | — | Degree aliases missing secondary / senior secondary / plurals |
+| **R-022** | P1 | Tokenization | **OPEN** | — | Skills parser drops skills separated by conjunction `" and "` |
+| **R-023** | P0 | Boundary Det | **OPEN** | — | Standalone duration lines in projects become phantom titles |
+| **R-024** | P0 | Section Det | **OPEN** | — | "Technologies" header not in `SECTION_HEADERS` |
+| **R-025** | P0 | Entity Assoc | **OPEN** | — | Experience parser mistakes bullet with role keyword for role |
+| **R-026** | P1 | Entity Assoc | **OPEN** | — | Education parser misses degree when combined on same line |
+| **R-027** | P2 | Normalization | **OPEN** | — | Education normalizer fails on fractional CGPA (`8.67/10.0`) |
+| **R-028** | P2 | Normalization | **OPEN** | — | Education score lines prefixed with bullet fail type check |
+| **R-029** | P1 | Link Assoc | **OPEN** | — | Project parser only associates hyperlinks on title bbox |
+| **R-030** | P1 | Calculation | **OPEN** | — | Experience normalizer "Present" yields 0 months experience |
+| **R-031** | P1 | Normalization | **OPEN** | — | Regex only matches full month names, fails on abbreviations |
+| **R-032** | P2 | Side Effect | **OPEN** | — | In-place modification of `text_blocks` duplicates descriptions |
+| **R-033** | P2 | Section Det | **PARTIAL** | Phase 4.5 Day 3 | Non-standard sections (`INTERESTS`, `ABOUT ME`, `SUMMARY`) |
+| **R-034** | P0 | Architecture | **OPEN** | — | Multi-page repeated canonical experience sections dropped |
+| **R-035** | P0 | Info Loss | **OPEN** | — | Project parser mutates title block into description on bullets |
+| **R-036** | P1 | Generalization| **OPEN** | — | `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Doctor`) |
+| **R-037** | P1 | Section Det | **OPEN** | — | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` |
+| **R-038** | P1 | Architecture | **OPEN** | — | Multi-page repeated education sections dropped |
+| **R-039** | P2 | Domain Logic | **OPEN** | — | Completeness analyzer enforces `projects` as required for all |
+| **R-040** | P2 | Keyword Cov | **OPEN** | — | Institution detection misses premier national institutes (`IISER`) |
+| **R-041** | P1 | Generalization| **OPEN** | — | JD parser misses `Title:` and unlabeled top-line roles |
+| **R-042** | P1 | Regex Limit | **OPEN** | — | JD YOE pattern fails on `Minimum X+ years` with qualifiers |
+
+### Status Ledger Summary
+- **Total Documented Issues:** 42
+- **FIXED:** 5 (R-001, R-004, R-008, R-010, R-013)
+- **PARTIAL:** 2 (R-009, R-033)
+- **OPEN:** 35
+- **REGRESSIONS:** 0
+

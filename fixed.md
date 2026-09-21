@@ -18,6 +18,9 @@ This report documents the fixes committed in `e72a322`, audits the hardening and
 | **R-004** | **P1** | Wrapped bullet lines split/dropped in experience parser | **FIXED** | Verified (Experience parser tests + PDF tests) |
 | **R-008** | **P1** | First experience bullet dropped `"10 percent page loading."` | **FIXED** | Verified (`HARSHIT_WEBDEV.pdf` extraction) |
 | **R-009** | **P0** | Multi-page PDF wrapped lines created phantom projects | **PARTIALLY FIXED** | `HTML, CSS` eliminated; `CSS` phantom project still persists |
+| **R-010** | **P2** | Skills parser stopped at first section header / dropped multiple skills sections | **FIXED** | Verified in Phase 4.5 Day 3 (`detect_sections` merges canonical skills sections) |
+| **R-013** | **P1** | `quality_analyzer` crashes with `TypeError` on `None` year | **FIXED** | Verified in `test_quality_analyzers.py` (null guards in place) |
+| **R-033** | **P2** | Non-standard sections (`INTERESTS`, `ABOUT ME`, `SUMMARY`) caused boundary bleed | **PARTIALLY FIXED** | Verified in `header_configs.py` (registered in `SECTION_HEADERS`) |
 
 ---
 
@@ -140,10 +143,10 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 | **R-007** | Project title retains `\| GitHub` / `\| LIVE` suffix | P1 | **OPEN** | Display artifact not stripped from title |
 | **R-008** | Experience bullet `"10 percent page loading"` dropped | P1 | **FIXED** | Concrete case of R-004; fully resolved and verified |
 | **R-009** | Multi-page PDF wrapped lines create phantom projects | P0 | **PARTIAL** | `HTML, CSS` fixed; `CSS` phantom project still persists |
-| **R-010** | Skills parser only extracts from first section | P2 | **OPEN** | Stops at any section header |
+| **R-010** | Skills parser only extracts from first section | P2 | **FIXED** | Fixed in Phase 4.5 Day 3: section-aware architecture merges all skills sections |
 | **R-011** | Education section header misses common variants | P2 | **OPEN** | Only matches `EDUCATION` substring |
 | **R-012** | Experience section header misses `EMPLOYMENT`, `INTERNSHIP` | P2 | **OPEN** | Only matches `EXPERIENCE` |
-| **R-013** | `quality_analyzer` crashes with `TypeError` on `None` year | P1 | **OPEN** | Needs null guard on comparison |
+| **R-013** | `quality_analyzer` crashes with `TypeError` on `None` year | P1 | **FIXED** | Fixed in Phase 3 / Day 3: null guards on start_year and end_year |
 | **R-014** | `ACHIEVEMENTS` section discarded | P1 | **OPEN** | Schema and parser gap |
 | **R-015** | `CERTIFICATIONS` and `PUBLICATIONS` not parsed | P2 | **OPEN** | Schema and parser gap |
 | **R-016** | Summary / Objective section not extracted | P2 | **OPEN** | Schema and parser gap |
@@ -152,6 +155,27 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 | **R-019** | `total_experience_months` inclusive +1 counting | P2 | **OPEN** | Clarify month interval semantics |
 | **R-020** | Duplicate name artifact in text layer | P4 | **OPEN** | Annotation artifact |
 | **R-021** | Degree aliases missing secondary/senior secondary | P2 | **OPEN** | Falls back to raw string |
+| **R-022** | Skills parser drops skills separated by `" and "` | P1 | **OPEN** | Tokenization delimiter gap |
+| **R-023** | Standalone duration lines in projects become phantom titles | P0 | **OPEN** | Date lines pass `_is_project_title` |
+| **R-024** | "Technologies" header not recognized as top-level section | P0 | **OPEN** | `TECHNOLOGIES` missing from `SECTION_HEADERS` |
+| **R-025** | Experience parser mistakes bullet with role keyword for role | P0 | **OPEN** | Role check runs before bullet check |
+| **R-026** | Education parser misses degree when combined on same line | P1 | **OPEN** | Line-level entity association gap |
+| **R-027** | Education normalizer fails on fractional CGPA (`X/10.0`) | P2 | **OPEN** | Caught ValueError returns score=None |
+| **R-028** | Education score lines prefixed with bullet fail type check | P2 | **OPEN** | Unstripped bullet markers |
+| **R-029** | Project parser only associates hyperlinks on title bbox | P1 | **OPEN** | Misses links on preview lines below title |
+| **R-030** | Experience normalizer "Present" yields 0 months experience | P1 | **OPEN** | None end_year skips duration calculation |
+| **R-031** | Regex only matches full month names, fails on abbreviations | P1 | **OPEN** | 3-letter months produce None |
+| **R-032** | In-place modification of `text_blocks` duplicates descriptions | P2 | **OPEN** | Side-effect on reused data structures |
+| **R-033** | Non-standard sections (`INTERESTS`, `ABOUT ME`, `SUMMARY`) | P2 | **PARTIAL** | Added to `SECTION_HEADERS` in Day 3 |
+| **R-034** | Multi-page repeated canonical experience sections dropped | P0 | **OPEN** | Discovered in real validation (`R04_MultiPage_Executive.pdf`) |
+| **R-035** | Project parser mutates title block into description on bullets | P0 | **OPEN** | Discovered in real validation (Unicode / font-glyph bullets) |
+| **R-036** | `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Doctor`) | P1 | **OPEN** | Discovered in real validation (`R03_Senior_Staff_ML.pdf`) |
+| **R-037** | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` | P1 | **OPEN** | Discovered in real validation (`R10_Alternate_Headings.pdf`) |
+| **R-038** | Multi-page repeated education sections dropped | P1 | **OPEN** | Architectural gap in education parser |
+| **R-039** | Completeness analyzer enforces `projects` as required for all | P2 | **OPEN** | False positive on experienced candidates |
+| **R-040** | Institution detection misses premier national institutes (`IISER`) | P2 | **OPEN** | Discovered in real validation (`R12_No_Experience_BioMed.pdf`) |
+| **R-041** | JD parser misses `Title:` and unlabeled top-line roles | P1 | **OPEN** | Discovered in real JD validation (55% failure rate) |
+| **R-042** | JD YOE pattern fails on `Minimum X+ years` with qualifiers | P1 | **OPEN** | Discovered in real JD validation (89% failure rate) |
 
 ---
 

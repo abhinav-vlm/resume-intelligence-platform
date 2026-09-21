@@ -1,4 +1,4 @@
-from src.configs.header_configs import SECTION_HEADERS
+from src.configs.header_configs import SECTION_HEADERS, SECTION_ALIASES
 
 
 def detect_sections(text: str) -> list[dict]:
@@ -7,6 +7,7 @@ def detect_sections(text: str) -> list[dict]:
 
     local_section = {
         "name": None,
+        "original_name": None,
         "text": ""
     }
 
@@ -17,24 +18,26 @@ def detect_sections(text: str) -> list[dict]:
 
         if is_section_header(normalized):
 
-            # If we were already inside a section,
-            # flush that section before starting the new one.
+            # Flush the previous section before starting a new one.
             if current_section:
                 sections.append(local_section)
 
-            # If this is the first section header,
-            # flush meaningful preamble content.
+            # If no section has started yet, flush meaningful preamble.
             elif local_section["text"].strip():
                 local_section["name"] = "preamble"
                 sections.append(local_section)
 
+            # Convert the resume's heading into our canonical section name.
+            canonical_name = SECTION_ALIASES.get(normalized, normalized)
+
             # Start the new section.
             local_section = {
-                "name": normalized,
+                "name": canonical_name,
+                "original_name": normalized,
                 "text": ""
             }
 
-            current_section = normalized
+            current_section = canonical_name
 
         elif current_section:
             # Preserve section content exactly as it appeared.

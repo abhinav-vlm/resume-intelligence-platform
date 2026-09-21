@@ -1,6 +1,6 @@
 import re
 
-from ..configs.header_configs import SECTION_HEADERS, SKILL,SKILL_CATEGORY_HEADERS
+from ..configs.header_configs import SKILL_CATEGORY_HEADERS
 from ..configs.skill_configs import KNOWN_SKILLS
 from ..configs.normalization_configs import SKILL_ALIASES
 from ..utils.text_utils import contains_keywords
@@ -90,23 +90,12 @@ def extract_skills(text: str) -> dict[str, list[str]]:
 
     skill_patterns = build_skill_patterns()
 
-    inside_skills = False
-
     for line in lines:
         line = line.strip()
         if is_skill_category_header(line):
            continue
         if not line:
             continue
-
-        if not inside_skills:
-            if contains_keywords(line, SKILL):
-                inside_skills = True
-            continue
-
-        if contains_keywords(line, SECTION_HEADERS):
-            break
-
         candidates = extract_skill_candidates(line)
 
         for candidate in candidates:

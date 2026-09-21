@@ -4,6 +4,10 @@ from src.parsers.skills_parser import extract_skills
 from src.normalizers.skill_normalizer import normalize_skills
 
 
+# ============================================================
+# Real resume regression
+# ============================================================
+
 def test_real_resume_skills():
     text = Path("tests/fixtures/HARSHIT_WEBDEV.txt").read_text(
         encoding="utf-8"
@@ -17,9 +21,12 @@ def test_real_resume_skills():
     assert "React" in skills
 
 
+# ============================================================
+# Basic extraction
+# ============================================================
+
 def test_plain_skill_lines():
     text = """
-    SKILLS
     Python
     React
     SQL
@@ -38,7 +45,6 @@ def test_plain_skill_lines():
 
 def test_comma_separated_skill_line():
     text = """
-    SKILLS
     Python, React, SQL
     """
 
@@ -55,7 +61,6 @@ def test_comma_separated_skill_line():
 
 def test_categorized_skill_lines():
     text = """
-    TECHNICAL SKILLS:
     Languages: Python, C++, SQL
     Frameworks: React, FastAPI
     """
@@ -73,9 +78,34 @@ def test_categorized_skill_lines():
     assert result["unknown"] == []
 
 
+def test_pipe_separated_skills():
+    text = """
+    Programming Languages
+    Python | C++ | JavaScript
+
+    Frameworks
+    ReactJS | FastAPI
+    """
+
+    result = extract_skills(text)
+
+    assert result["known"] == [
+        "Python",
+        "C++",
+        "JavaScript",
+        "ReactJS",
+        "FastAPI",
+    ]
+
+    assert result["unknown"] == []
+
+
+# ============================================================
+# Deduplication
+# ============================================================
+
 def test_duplicate_skills():
     text = """
-    SKILLS
     Python, React
     Python, SQL
     """
@@ -91,9 +121,26 @@ def test_duplicate_skills():
     assert result["unknown"] == []
 
 
+def test_unknown_duplicates_are_deduplicated():
+    text = """
+    MongoDB
+    mongodb
+    MONGODB
+    """
+
+    result = extract_skills(text)
+
+    assert result["unknown"] == [
+        "MongoDB",
+    ]
+
+
+# ============================================================
+# Boundary matching
+# ============================================================
+
 def test_skill_boundary_matching():
     text = """
-    SKILLS
     C
     C++
     Java
@@ -114,9 +161,12 @@ def test_skill_boundary_matching():
     ]
 
 
+# ============================================================
+# Aliases and normalization
+# ============================================================
+
 def test_skill_aliases_are_extracted():
     text = """
-    SKILLS
     ReactJS
     Express.JS
     Next.JS
@@ -139,9 +189,41 @@ def test_skill_aliases_are_extracted():
     ]
 
 
+def test_known_skills_are_normalized_after_extraction():
+    text = """
+    Python
+    ReactJS
+    Express.JS
+    Next.JS
+    """
+
+    result = extract_skills(text)
+
+    normalized = normalize_skills(result["known"])
+
+    assert result["known"] == [
+        "Python",
+        "ReactJS",
+        "Express.JS",
+        "Next.JS",
+    ]
+
+    assert normalized == [
+        "Python",
+        "React",
+        "Express.js",
+        "Next.js",
+    ]
+
+    assert result["unknown"] == []
+
+
+# ============================================================
+# Unknown skills
+# ============================================================
+
 def test_unknown_skills_are_preserved():
     text = """
-    SKILLS
     Python
     React
     MongoDB
@@ -165,7 +247,6 @@ def test_unknown_skills_are_preserved():
 
 def test_unknown_skills_in_categorized_lines():
     text = """
-    TECHNICAL SKILLS:
     Languages: Python, C++, Rust
     Frameworks: React, FastAPI, Svelte
     Databases: MongoDB, Redis
@@ -188,74 +269,29 @@ def test_unknown_skills_in_categorized_lines():
     ]
 
 
-def test_long_prose_is_not_skill_candidate():
+def test_unknown_skills_are_not_normalized():
     text = """
-    SKILLS
     Python
-    React
-    Experienced software engineer with strong experience
-    in building scalable applications using Python
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-    ]
-
-    assert result["unknown"] == []
-
-def test_empty_candidates_are_ignored():
-    text = """
-    SKILLS
-    Python,,React,,,SQL
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-    ]
-
-    assert result["unknown"] == []
-
-
-def test_case_variation_preserves_surface_form():
-    text = """
-    SKILLS
-    python
-    REACT
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "python",
-        "REACT",
-    ]
-
-
-def test_unknown_duplicates_are_deduplicated():
-    text = """
-    SKILLS
     MongoDB
-    mongodb
-    MONGODB
+    PyTorch
     """
 
     result = extract_skills(text)
+
+    normalized = normalize_skills(result["known"])
+
+    assert normalized == [
+        "Python",
+    ]
 
     assert result["unknown"] == [
         "MongoDB",
+        "PyTorch",
     ]
 
 
 def test_multi_word_unknown_skill_is_preserved():
     text = """
-    SKILLS
     Python
     Deep Learning
     Natural Language Processing
@@ -275,7 +311,6 @@ def test_multi_word_unknown_skill_is_preserved():
 
 def test_mixed_known_and_unknown_skills():
     text = """
-    SKILLS
     Python, MongoDB, React, PyTorch
     """
 
@@ -292,15 +327,13 @@ def test_mixed_known_and_unknown_skills():
     ]
 
 
-def test_skills_section_stops_at_next_section():
-    text = """
-    SKILLS
-    Python
-    React
+# ============================================================
+# Candidate validation
+# ============================================================
 
-    EXPERIENCE
-    MongoDB
-    PyTorch
+def test_empty_candidates_are_ignored():
+    text = """
+    Python,,React,,,SQL
     """
 
     result = extract_skills(text)
@@ -308,13 +341,14 @@ def test_skills_section_stops_at_next_section():
     assert result["known"] == [
         "Python",
         "React",
+        "SQL",
     ]
 
     assert result["unknown"] == []
 
+
 def test_legitimate_long_skill_is_preserved():
     text = """
-    SKILLS
     Object Oriented Programming
     Natural Language Processing
     """
@@ -326,82 +360,31 @@ def test_legitimate_long_skill_is_preserved():
         "Natural Language Processing",
     ]
 
-def test_known_skills_are_normalized_after_extraction():
+
+# ============================================================
+# Case handling
+# ============================================================
+
+def test_case_variation_preserves_surface_form():
     text = """
-    SKILLS
-    Python
-    ReactJS
-    Express.JS
-    Next.JS
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert result["known"] == [
-        "Python",
-        "ReactJS",
-        "Express.JS",
-        "Next.JS",
-    ]
-
-    assert normalized == [
-        "Python",
-        "React",
-        "Express.js",
-        "Next.js",
-    ]
-
-    assert result["unknown"] == []
-
-def test_unknown_skills_are_not_normalized():
-    text = """
-    SKILLS
-    Python
-    MongoDB
-    PyTorch
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert normalized == [
-        "Python",
-    ]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
-    ]
-
-def test_skills_are_extracted_only_from_skills_section():
-    text = """
-    SKILLS
-    Python
-    ReactJS
-
-    EXPERIENCE
-    Built applications using MongoDB and Redis.
-
-    PROJECTS
-    Used PyTorch and LangChain for experimentation.
+    python
+    REACT
     """
 
     result = extract_skills(text)
 
     assert result["known"] == [
-        "Python",
-        "ReactJS",
+        "python",
+        "REACT",
     ]
 
-    assert result["unknown"] == []
+
+# ============================================================
+# Realistic mixed formatting
+# ============================================================
 
 def test_realistic_mixed_skill_formatting():
     text = """
-    TECHNICAL SKILLS:
-
     Languages: Python, C++, JavaScript
     Frameworks: ReactJS, FastAPI
     Databases: MongoDB, Redis
@@ -424,26 +407,3 @@ def test_realistic_mixed_skill_formatting():
         "Deep Learning",
         "NLP",
     ]
-
-def test_pipe_separated_skills():
-    text = """
-    TECHNICAL SKILLS
-
-    Programming Languages
-    Python | C++ | JavaScript
-
-    Frameworks
-    ReactJS | FastAPI
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "C++",
-        "JavaScript",
-        "ReactJS",
-        "FastAPI",
-    ]
-
-    assert result["unknown"] == []
