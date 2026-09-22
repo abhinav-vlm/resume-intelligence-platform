@@ -1,32 +1,36 @@
-from ..configs.header_configs import SECTION_HEADERS,EDUCATION_SECTION_HEADERS
-from ..configs.education_configs import INSTITUTION_KEYWORDS,DEGREE_KEYWORDS,MARKS
-from ..utils.text_utils import is_duration,contains_keywords
+from ..configs.education_configs import (
+    INSTITUTION_KEYWORDS,
+    DEGREE_KEYWORDS,
+    MARKS,
+)
+from ..utils.text_utils import is_duration, contains_keywords
 
-def _extract_education(text:str)->list[list[str]]|None:
+def _extract_education(text: str) -> list[list[str]] | None:
     lines = text.split("\n")
     education = []
     current_education = []
-    inside_education = False
+    institution_found = False
 
     for line in lines:
         line = line.strip()
-        if not inside_education:
-           if contains_keywords(line,EDUCATION_SECTION_HEADERS):
-              inside_education = True
-           continue
-        if contains_keywords(line,SECTION_HEADERS):
-            break
-        if line:
-           if contains_keywords(line,INSTITUTION_KEYWORDS):
-              if current_education:
+
+        if not line:
+            continue
+
+        if contains_keywords(line, INSTITUTION_KEYWORDS):
+            if institution_found:
                 education.append(current_education)
-              current_education = []
-           current_education.append(line)
+                current_education = []
+
+            institution_found = True
+
+        current_education.append(line)
+
     if current_education:
-       education.append(current_education)
-           
+        education.append(current_education)
+
     return education if education else None
-   
+       
 def _parse_education(education_blocks:list[list[str]])->list[dict]:
    
    parsed_education = []

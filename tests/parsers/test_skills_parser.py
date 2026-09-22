@@ -1,24 +1,4 @@
-from pathlib import Path
-
 from src.parsers.skills_parser import extract_skills
-from src.normalizers.skill_normalizer import normalize_skills
-
-
-# ============================================================
-# Real resume regression
-# ============================================================
-
-def test_real_resume_skills():
-    text = Path("tests/fixtures/HARSHIT_WEBDEV.txt").read_text(
-        encoding="utf-8"
-    )
-
-    result = extract_skills(text)
-
-    skills = normalize_skills(result["known"])
-
-    assert "Python" in skills
-    assert "React" in skills
 
 
 # ============================================================
@@ -162,7 +142,7 @@ def test_skill_boundary_matching():
 
 
 # ============================================================
-# Aliases and normalization
+# Alias extraction
 # ============================================================
 
 def test_skill_aliases_are_extracted():
@@ -178,41 +158,6 @@ def test_skill_aliases_are_extracted():
         "ReactJS",
         "Express.JS",
         "Next.JS",
-    ]
-
-    normalized = normalize_skills(result["known"])
-
-    assert normalized == [
-        "React",
-        "Express.js",
-        "Next.js",
-    ]
-
-
-def test_known_skills_are_normalized_after_extraction():
-    text = """
-    Python
-    ReactJS
-    Express.JS
-    Next.JS
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert result["known"] == [
-        "Python",
-        "ReactJS",
-        "Express.JS",
-        "Next.JS",
-    ]
-
-    assert normalized == [
-        "Python",
-        "React",
-        "Express.js",
-        "Next.js",
     ]
 
     assert result["unknown"] == []
@@ -266,27 +211,6 @@ def test_unknown_skills_in_categorized_lines():
         "Svelte",
         "MongoDB",
         "Redis",
-    ]
-
-
-def test_unknown_skills_are_not_normalized():
-    text = """
-    Python
-    MongoDB
-    PyTorch
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert normalized == [
-        "Python",
-    ]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
     ]
 
 

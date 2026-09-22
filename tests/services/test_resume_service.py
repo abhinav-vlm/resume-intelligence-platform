@@ -1,377 +1,565 @@
+from io import BytesIO
+
 import pytest
-
-from src.parsers.skills_parser import extract_skills
-from src.normalizers.skill_normalizer import normalize_skills
-
-
-# ============================================================
-# Basic extraction
-# ============================================================
-
-def test_plain_skill_lines():
-    text = """
-    Python
-    React
-    SQL
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-    ]
-
-    assert result["unknown"] == []
-
-
-def test_comma_separated_skill_line():
-    text = """
-    Python, React, SQL
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-    ]
-
-    assert result["unknown"] == []
-
-
-def test_pipe_separated_skills():
-    text = """
-    Python | React | SQL | Docker
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-        "Docker",
-    ]
-
-    assert result["unknown"] == []
-
-
-def test_categorized_skill_lines():
-    text = """
-    Programming Languages: Python, Java
-    Frameworks: React, Django
-    Databases: SQL, MongoDB
-    """
-
-    result = extract_skills(text)
-
-    assert "Python" in result["known"]
-    assert "Java" in result["known"]
-    assert "React" in result["known"]
-    assert "Django" in result["known"]
-    assert "SQL" in result["known"]
-
-    assert "MongoDB" in result["unknown"]
+from fastapi import UploadFile
+import src.services.resume_service as resume_service
 
 
 # ============================================================
-# Deduplication
+# Helpers
 # ============================================================
 
-def test_duplicate_skills():
-    text = """
-    Python, React
-    Python, SQL
-    React
-    """
+def make_pdf_upload():
+    return UploadFile(
+        filename="test_resume.pdf",
+        file=BytesIO(b"fake pdf content"),
+        headers={"content-type": "application/pdf"},
+    )
 
-    result = extract_skills(text)
+def patch_common_dependencies(monkeypatch, text):
+    monkeypatch.setattr(
+        resume_service,
+        "extract_text",
+        lambda content: text,
+    )
 
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-    ]
+    monkeypatch.setattr(
+        resume_service,
+        "extract_text_blocks",
+        lambda content: [],
+    )
 
-    assert result["unknown"] == []
+    monkeypatch.setattr(
+        resume_service,
+        "extract_links",
+        lambda content: [],
+    )
 
+    monkeypatch.setattr(
+        resume_service,
+        "extract_email",
+        lambda text: None,
+    )
 
-def test_unknown_duplicates_are_deduplicated():
-    text = """
-    MongoDB
-    mongodb
-    MONGODB
-    """
+    monkeypatch.setattr(
+        resume_service,
+        "extract_phone",
+        lambda text: None,
+    )
 
-    result = extract_skills(text)
+    monkeypatch.setattr(
+        resume_service,
+        "extract_name",
+        lambda text: "Test User",
+    )
 
-    assert result["unknown"] == [
-        "MongoDB",
-    ]
+    monkeypatch.setattr(
+        resume_service,
+        "process_projects",
+        lambda text_blocks, links: [],
+    )
 
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_completeness",
+        lambda resume_data: {},
+    )
 
-# ============================================================
-# Skill boundary matching
-# ============================================================
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_quality",
+        lambda resume_data: {},
+    )
 
-def test_skill_boundary_matching():
-    text = """
-    Python
-    Pythonic
-    Py
-    SQL
-    SQLAlchemy
-    """
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_formatting",
+        lambda resume_data: {},
+    )
 
-    result = extract_skills(text)
-
-    assert "Python" in result["known"]
-    assert "SQL" in result["known"]
-
-    assert "Pythonic" in result["unknown"]
-    assert "SQLAlchemy" in result["unknown"]
-
-
-# ============================================================
-# Aliases
-# ============================================================
-
-def test_skill_aliases_are_extracted():
-    text = """
-    ReactJS
-    Express.JS
-    Next.JS
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "ReactJS",
-        "Express.JS",
-        "Next.JS",
-    ]
-
-
-def test_known_skills_are_normalized_after_extraction():
-    text = """
-    Python
-    ReactJS
-    Express.JS
-    Next.JS
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert result["known"] == [
-        "Python",
-        "ReactJS",
-        "Express.JS",
-        "Next.JS",
-    ]
-
-    assert normalized == [
-        "Python",
-        "React",
-        "Express.js",
-        "Next.js",
-    ]
-
-    assert result["unknown"] == []
+    monkeypatch.setattr(
+        resume_service,
+        "process_skill_experience",
+        lambda experience, skills: {},
+    )
 
 
 # ============================================================
-# Unknown skills
+# File validation
 # ============================================================
 
-def test_unknown_skills_are_preserved():
-    text = """
-    Python
-    React
-    MongoDB
-    PyTorch
-    LangChain
-    """
+@pytest.mark.asyncio
+async def test_process_resume_rejects_non_pdf():
+    file = UploadFile(
+        filename="resume.txt",
+        file=None,
+        headers={"content-type": "text/plain"},
+    )
 
-    result = extract_skills(text)
+    result = await resume_service.process_resume(file)
 
-    assert result["known"] == [
-        "Python",
-        "React",
-    ]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
-        "LangChain",
-    ]
-
-
-def test_unknown_skills_in_categorized_lines():
-    text = """
-    Databases: MongoDB, Redis
-    Frameworks: React, PyTorch
-    """
-
-    result = extract_skills(text)
-
-    assert "React" in result["known"]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "Redis",
-        "PyTorch",
-    ]
-
-
-def test_unknown_skills_are_not_normalized():
-    text = """
-    Python
-    MongoDB
-    PyTorch
-    """
-
-    result = extract_skills(text)
-
-    normalized = normalize_skills(result["known"])
-
-    assert normalized == [
-        "Python",
-    ]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
-    ]
-
-
-def test_multi_word_unknown_skill_is_preserved():
-    text = """
-    Python
-    Deep Learning
-    Natural Language Processing
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-    ]
-
-    assert result["unknown"] == [
-        "Deep Learning",
-        "Natural Language Processing",
-    ]
-
-
-def test_mixed_known_and_unknown_skills():
-    text = """
-    Python, MongoDB, React, PyTorch
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-    ]
-
-    assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
-    ]
-
-
-
-def test_legitimate_long_skill_is_preserved():
-    text = """
-    Object Oriented Programming
-    Natural Language Processing
-    """
-
-    result = extract_skills(text)
-
-    assert result["unknown"] == [
-        "Object Oriented Programming",
-        "Natural Language Processing",
-    ]
-
-
-def test_empty_candidates_are_ignored():
-    text = """
-    Python,,React,,,SQL
-    """
-
-    result = extract_skills(text)
-
-    assert result["known"] == [
-        "Python",
-        "React",
-        "SQL",
-    ]
-
-    assert result["unknown"] == []
+    assert result == {
+        "error": "Only PDF files allowed"
+    }
 
 
 # ============================================================
-# Formatting
+# Section-aware experience integration
 # ============================================================
 
-def test_case_variation_preserves_surface_form():
-    text = """
-    python
-    PYTHON
-    Python
-    """
+@pytest.mark.asyncio
+async def test_process_resume_routes_experience_section_to_parser(
+    monkeypatch,
+):
+    text = """WORK EXPERIENCE
+Company A
+Software Engineer
+2022 - 2024
+Built ML systems.
 
-    result = extract_skills(text)
+EDUCATION
+University A
+B.Tech
+2020 - 2024
+"""
 
-    assert result["known"] == [
-        "python",
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_experience(experience_text):
+        captured["text"] = experience_text
+        return [
+            {
+                "company": "Company A",
+                "position": "Software Engineer",
+            }
+        ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        fake_process_experience,
+    )
+    monkeypatch.setattr(
+    resume_service,
+    "normalize_experience",
+    lambda experience: experience,
+    )
+
+    monkeypatch.setattr(
+    resume_service,
+    "calculate_total_experience",
+    lambda experience: 0,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"].strip() == (
+        "Company A\n"
+        "Software Engineer\n"
+        "2022 - 2024\n"
+        "Built ML systems."
+    )
+
+    assert result["experience"] == [
+        {
+            "company": "Company A",
+            "position": "Software Engineer",
+        }
     ]
 
 
-def test_realistic_mixed_skill_formatting():
-    text = """
-    Programming Languages: Python, JavaScript
-    Frameworks: ReactJS, Express.JS
-    Databases: PostgreSQL, MongoDB
-    """
+@pytest.mark.asyncio
+async def test_process_resume_aggregates_multiple_experience_sections(
+    monkeypatch,
+):
+    text = """EXPERIENCE
+Company A
+Software Engineer
+2022 - 2024
 
-    result = extract_skills(text)
+SUMMARY
+Experienced ML engineer.
 
-    assert "Python" in result["known"]
-    assert "JavaScript" in result["known"]
-    assert "ReactJS" in result["known"]
-    assert "Express.JS" in result["known"]
+WORK HISTORY
+Company B
+Senior Software Engineer
+2019 - 2022
+"""
 
-    assert "PostgreSQL" in result["unknown"]
-    assert "MongoDB" in result["unknown"]
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_experience(experience_text):
+        captured["text"] = experience_text
+
+        return [
+            {"company": "Company A"},
+            {"company": "Company B"},
+        ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        fake_process_experience,
+    )
+    monkeypatch.setattr(
+    resume_service,
+    "normalize_experience",
+    lambda experience: experience,
+    )
+    monkeypatch.setattr(
+    resume_service,
+    "calculate_total_experience",
+    lambda experience: 0,
+    )
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"].strip() == (
+        "Company A\n"
+        "Software Engineer\n"
+        "2022 - 2024\n"
+        "\n"
+        "Company B\n"
+        "Senior Software Engineer\n"
+        "2019 - 2022"
+    )
+
+    assert result["experience"] == [
+        {"company": "Company A"},
+        {"company": "Company B"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_resume_returns_empty_experience_when_no_experience_section(
+    monkeypatch,
+):
+    text = """EDUCATION
+University A
+B.Tech
+2020 - 2024
+
+SKILLS
+Python
+SQL
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_experience(experience_text):
+        captured["text"] = experience_text
+        return None
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        fake_process_experience,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"] == ""
+    assert result["experience"] == []
+    assert result["total_experience_months"] == 0
 
 
 # ============================================================
-# Real resume regression
+# Section-aware education integration
 # ============================================================
 
-def test_real_resume_skills():
-    text = """
-    Python
-    C++
-    SQL
-    React
-    Express.js
-    Next.js
-    """
+@pytest.mark.asyncio
+async def test_process_resume_routes_education_section_to_parser(
+    monkeypatch,
+):
+    text = """EDUCATION
+University A
+B.Tech Computer Science
+2020 - 2024
 
-    result = extract_skills(text)
+EXPERIENCE
+Company A
+Software Engineer
+2024 - PRESENT
+"""
 
-    assert "Python" in result["known"]
-    assert "C++" in result["known"]
-    assert "SQL" in result["known"]
-    assert "React" in result["known"]
-    assert "Express.js" in result["known"]
-    assert "Next.js" in result["known"]
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_education(education_text):
+        captured["text"] = education_text
+
+        return [
+            {
+                "institution": "University A",
+                "degree": "B.Tech Computer Science",
+            }
+        ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        fake_process_education,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_education",
+        lambda education: education,
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"].strip() == (
+        "University A\n"
+        "B.Tech Computer Science\n"
+        "2020 - 2024"
+    )
+
+    assert result["education"] == [
+        {
+            "institution": "University A",
+            "degree": "B.Tech Computer Science",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_resume_aggregates_multiple_education_sections(
+    monkeypatch,
+):
+    text = """EDUCATION
+University A
+B.Tech
+2018 - 2022
+
+ACADEMIC QUALIFICATIONS
+University B
+M.Tech
+2022 - 2024
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_education(education_text):
+        captured["text"] = education_text
+
+        return [
+            {"institution": "University A"},
+            {"institution": "University B"},
+        ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        fake_process_education,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_education",
+        lambda education: education,
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"].strip() == (
+        "University A\n"
+        "B.Tech\n"
+        "2018 - 2022\n"
+        "\n"
+        "University B\n"
+        "M.Tech\n"
+        "2022 - 2024"
+    )
+
+    assert result["education"] == [
+        {"institution": "University A"},
+        {"institution": "University B"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_resume_returns_no_education_when_section_is_absent(
+    monkeypatch,
+):
+    text = """EXPERIENCE
+Company A
+Software Engineer
+2022 - PRESENT
+
+SKILLS
+Python
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    captured = {}
+
+    def fake_process_education(education_text):
+        captured["text"] = education_text
+        return None
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        fake_process_education,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert captured["text"] == ""
+    assert result["education"] is None
+
+
+# ============================================================
+# Skills integration
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_aggregates_multiple_skill_sections(
+    monkeypatch,
+):
+    text = """TECHNICAL SKILLS
+Python
+SQL
+
+NON TECHNICAL SKILLS
+Communication
+Leadership
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["sections"][0]["name"] == "skills"
+    assert result["sections"][1]["name"] == "skills"
+
+    assert "Python" in result["skills"]
+    assert "SQL" in result["skills"]
+
+
+# ============================================================
+# Service response contract
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_response_contains_expected_contract(
+    monkeypatch,
+):
+    text = """EDUCATION
+University A
+B.Tech
+2020 - 2024
+
+EXPERIENCE
+Company A
+Software Engineer
+2022 - PRESENT
+
+SKILLS
+Python
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: None,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    expected_keys = {
+        "filename",
+        "text",
+        "email",
+        "phone",
+        "name",
+        "sections",
+        "education",
+        "experience",
+        "projects",
+        "skills",
+        "unknown_skills",
+        "total_experience_months",
+        "completeness",
+        "quality_check",
+        "formatting_check",
+        "skill_experience",
+        "content_type",
+        "message",
+    }
+
+    assert expected_keys.issubset(result.keys())
+
+    assert result["filename"] == "test_resume.pdf"
+    assert result["content_type"] == "application/pdf"
+    assert result["message"] == "Resume received successfully"

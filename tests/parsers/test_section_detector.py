@@ -489,3 +489,70 @@ def test_whitespace_only_text_returns_no_sections():
     text = "   \n\t\n   \n"
 
     assert detect_sections(text) == []
+
+
+def test_work_history_maps_to_experience():
+    text = """
+    WORK HISTORY
+    Software Engineer at ABC
+    Built machine learning systems.
+    """
+
+    sections = detect_sections(text)
+
+    assert len(sections) == 1
+    assert sections[0]["name"] == "experience"
+    assert sections[0]["original_name"] == "work history"
+    assert "Software Engineer at ABC" in sections[0]["text"]
+
+
+def test_academic_qualifications_maps_to_education():
+    text = """
+    ACADEMIC QUALIFICATIONS
+    B.Tech in Computer Science
+    XYZ University
+    """
+
+    sections = detect_sections(text)
+
+    assert len(sections) == 1
+    assert sections[0]["name"] == "education"
+    assert sections[0]["original_name"] == "academic qualifications"
+    assert "B.Tech in Computer Science" in sections[0]["text"]
+
+
+def test_areas_of_expertise_maps_to_skills():
+    text = """
+    AREAS OF EXPERTISE
+    Python, Machine Learning, Docker
+    """
+
+    sections = detect_sections(text)
+
+    assert len(sections) == 1
+    assert sections[0]["name"] == "skills"
+    assert sections[0]["original_name"] == "areas of expertise"
+    assert "Python, Machine Learning, Docker" in sections[0]["text"]
+
+def test_new_section_aliases_are_normalized():
+    text = """
+       work    history:
+    Software Engineer
+
+    academic   qualifications:
+    B.Tech Computer Science
+
+    areas   of   expertise:
+    Python, SQL
+    """
+
+    sections = detect_sections(text)
+
+    assert sections[0]["name"] == "experience"
+    assert sections[0]["original_name"] == "work history"
+
+    assert sections[1]["name"] == "education"
+    assert sections[1]["original_name"] == "academic qualifications"
+
+    assert sections[2]["name"] == "skills"
+    assert sections[2]["original_name"] == "areas of expertise"

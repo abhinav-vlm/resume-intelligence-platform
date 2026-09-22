@@ -1,35 +1,31 @@
-from ..configs.header_configs import SECTION_HEADERS,EXPERIENCE_HEADERS
 from ..configs.experience_configs import ROLE_KEYWORDS
-from ..utils.text_utils import is_duration,contains_keywords
-import re
+from ..utils.text_utils import is_duration, contains_keywords
 
-def _extract_experience(text:str)->list[list[str]]|None:
+def _extract_experience(text: str) -> list[list[str]] | None:
     lines = text.split("\n")
-    inside_experience = False
     experience = []
     curr_experience = []
     duration_found = False
 
-    for i,line in enumerate(lines):
+    for line in lines:
         line = line.strip()
-        if not inside_experience:
-            if contains_keywords(line,EXPERIENCE_HEADERS):
-                inside_experience = True
-            continue
-        if contains_keywords(line,SECTION_HEADERS):
-            break
 
-        if line:
-            if is_duration(line):
-                if duration_found:
-                    new_company = curr_experience.pop()
-                    experience.append(curr_experience)
-                    curr_experience = [new_company]
-                else:
-                    duration_found = True
-            curr_experience.append(line)
+        if not line:
+            continue
+
+        if is_duration(line):
+            if duration_found:
+                new_company = curr_experience.pop()
+                experience.append(curr_experience)
+                curr_experience = [new_company]
+            else:
+                duration_found = True
+
+        curr_experience.append(line)
+
     if curr_experience:
-       experience.append(curr_experience)
+        experience.append(curr_experience)
+
     return experience if experience else None
 
 def _parse_experience(experience_block:list[list[str]])->list[dict]:

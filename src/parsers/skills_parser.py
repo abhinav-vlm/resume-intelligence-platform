@@ -3,7 +3,6 @@ import re
 from ..configs.header_configs import SKILL_CATEGORY_HEADERS
 from ..configs.skill_configs import KNOWN_SKILLS
 from ..configs.normalization_configs import SKILL_ALIASES
-from ..utils.text_utils import contains_keywords
 
 
 def build_skill_patterns() -> list[tuple[str, re.Pattern]]:

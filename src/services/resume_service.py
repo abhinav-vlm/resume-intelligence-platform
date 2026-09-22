@@ -51,8 +51,15 @@ async def process_resume(file:UploadFile):
     skill_data = extract_skills(skill_text)
     skills = normalize_skills(skill_data["known"])
     unknown_skills = skill_data["unknown"]
-    education = process_education(cleaned_text)
-    experience = process_experience(cleaned_text) or []
+    
+    education_text = "\n".join(section["text"] for section in sections if section["name"] == "education")
+    
+    education = process_education(education_text)
+
+    experience_text = "\n".join(section["text"] for section in sections if section["name"] == "experience")
+
+    experience = process_experience(experience_text) or []
+
     projects = process_projects(text_blocks, links)
 
     if education:
