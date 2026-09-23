@@ -2,6 +2,7 @@ from io import BytesIO
 
 import pytest
 from fastapi import UploadFile
+
 import src.services.resume_service as resume_service
 
 
@@ -15,6 +16,7 @@ def make_pdf_upload():
         file=BytesIO(b"fake pdf content"),
         headers={"content-type": "application/pdf"},
     )
+
 
 def patch_common_dependencies(monkeypatch, text):
     monkeypatch.setattr(
@@ -92,8 +94,32 @@ def patch_common_dependencies(monkeypatch, text):
 async def test_process_resume_rejects_non_pdf():
     file = UploadFile(
         filename="resume.txt",
-        file=None,
+        file=BytesIO(b"fake resume"),
         headers={"content-type": "text/plain"},
+    )
+
+    result = await resume_service.process_resume(file)
+
+    assert result == {
+        "error": "Only PDF files allowed"
+    }
+
+
+@pytest.mark.asyncio
+async def test_process_resume_does_not_process_non_pdf(monkeypatch):
+    file = UploadFile(
+        filename="resume.txt",
+        file=BytesIO(b"fake resume"),
+        headers={"content-type": "text/plain"},
+    )
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("PDF parser should not be called")
+
+    monkeypatch.setattr(
+        resume_service,
+        "extract_text",
+        fail_if_called,
     )
 
     result = await resume_service.process_resume(file)
@@ -129,6 +155,7 @@ B.Tech
 
     def fake_process_experience(experience_text):
         captured["text"] = experience_text
+
         return [
             {
                 "company": "Company A",
@@ -141,16 +168,17 @@ B.Tech
         "process_experience",
         fake_process_experience,
     )
+
     monkeypatch.setattr(
-    resume_service,
-    "normalize_experience",
-    lambda experience: experience,
+        resume_service,
+        "normalize_experience",
+        lambda experience: experience,
     )
 
     monkeypatch.setattr(
-    resume_service,
-    "calculate_total_experience",
-    lambda experience: 0,
+        resume_service,
+        "calculate_total_experience",
+        lambda experience: 0,
     )
 
     monkeypatch.setattr(
@@ -213,16 +241,19 @@ Senior Software Engineer
         "process_experience",
         fake_process_experience,
     )
+
     monkeypatch.setattr(
-    resume_service,
-    "normalize_experience",
-    lambda experience: experience,
+        resume_service,
+        "normalize_experience",
+        lambda experience: experience,
     )
+
     monkeypatch.setattr(
-    resume_service,
-    "calculate_total_experience",
-    lambda experience: 0,
+        resume_service,
+        "calculate_total_experience",
+        lambda experience: 0,
     )
+
     monkeypatch.setattr(
         resume_service,
         "process_education",
@@ -563,3 +594,339 @@ Python
     assert result["filename"] == "test_resume.pdf"
     assert result["content_type"] == "application/pdf"
     assert result["message"] == "Resume received successfully"
+
+
+# ============================================================
+# Resume metadata extraction
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_extracts_metadata_from_cleaned_text(
+    monkeypatch,
+):
+    text = """John Doe
+john@example.com
++91-9876543210
+
+SKILLS
+Python
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    monkeypatch.setattr(
+        resume_service,
+        "extract_email",
+        lambda text: "john@example.com",
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "extract_phone",
+        lambda text: "+91-9876543210",
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "extract_name",
+        lambda text: "John Doe",
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["name"] == "John Doe"
+    assert result["email"] == "john@example.com"
+    assert result["phone"] == "+91-9876543210"
+
+
+# ============================================================
+# Projects integration
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_processes_projects(
+    monkeypatch,
+):
+    text = """PROJECTS
+Resume Intelligence Platform
+Built a production-grade resume parser.
+
+SKILLS
+Python
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_projects",
+        lambda text_blocks, links: [
+            {
+                "name": "Resume Intelligence Platform",
+            }
+        ],
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_projects",
+        lambda projects: projects,
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["projects"] == [
+        {
+            "name": "Resume Intelligence Platform",
+        }
+    ]
+
+
+# ============================================================
+# Normalization integration
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_normalizes_experience(
+    monkeypatch,
+):
+    text = """EXPERIENCE
+Company A
+Software Engineer
+2022 - 2024
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    raw_experience = [
+        {
+            "company": "Company A",
+            "position": "Software Engineer",
+        }
+    ]
+
+    normalized_experience = [
+        {
+            "company": "Company A",
+            "position": "Software Engineer",
+            "duration_months": 24,
+        }
+    ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: raw_experience,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_experience",
+        lambda experience: normalized_experience,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "calculate_total_experience",
+        lambda experience: 24,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["experience"] == normalized_experience
+    assert result["total_experience_months"] == 24
+
+
+@pytest.mark.asyncio
+async def test_process_resume_normalizes_education(
+    monkeypatch,
+):
+    text = """EDUCATION
+University A
+B.Tech
+2020 - 2024
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    raw_education = [
+        {
+            "institution": "University A",
+            "degree": "B.Tech",
+        }
+    ]
+
+    normalized_education = [
+        {
+            "institution": "University A",
+            "degree": "B.Tech",
+            "start_year": 2020,
+            "end_year": 2024,
+        }
+    ]
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_education",
+        lambda text: raw_education,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_education",
+        lambda education: normalized_education,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["education"] == normalized_education
+
+
+# ============================================================
+# Analyzer integration
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_runs_resume_analyzers(
+    monkeypatch,
+):
+    text = """EXPERIENCE
+Company A
+Software Engineer
+
+SKILLS
+Python
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    calls = {}
+
+    def fake_completeness(data):
+        calls["completeness"] = data
+        return {"score": 80}
+
+    def fake_quality(data):
+        calls["quality"] = data
+        return {"score": 75}
+
+    def fake_formatting(data):
+        calls["formatting"] = data
+        return {"score": 90}
+
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_completeness",
+        fake_completeness,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_quality",
+        fake_quality,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_formatting",
+        fake_formatting,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [],
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["completeness"] == {"score": 80}
+    assert result["quality_check"] == {"score": 75}
+    assert result["formatting_check"] == {"score": 90}
+
+    assert "completeness" in calls
+    assert "quality" in calls
+    assert "formatting" in calls
+
+
+# ============================================================
+# Skill-experience integration
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_process_resume_builds_skill_experience_mapping(
+    monkeypatch,
+):
+    text = """EXPERIENCE
+Company A
+Python Developer
+
+SKILLS
+Python
+SQL
+"""
+
+    patch_common_dependencies(monkeypatch, text)
+
+    expected_mapping = {
+        "Python": {
+            "years": 2,
+        }
+    }
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_experience",
+        lambda text: [
+            {
+                "company": "Company A",
+                "position": "Python Developer",
+            }
+        ],
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "normalize_experience",
+        lambda experience: experience,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "calculate_total_experience",
+        lambda experience: 24,
+    )
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_skill_experience",
+        lambda experience, skills: expected_mapping,
+    )
+
+    result = await resume_service.process_resume(
+        make_pdf_upload()
+    )
+
+    assert result["skill_experience"] == expected_mapping

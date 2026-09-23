@@ -1,5 +1,6 @@
-from src.normalizers.experience_normalizer import calculate_total_experience
 from fastapi import UploadFile
+
+from ..utils.resume_metadata_utils import extract_linkedin
 
 from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
 from ..parsers.text_parser import clean_text
@@ -14,13 +15,17 @@ from ..parsers.section_detector import detect_sections
 
 from ..normalizers.project_normalizer import normalize_projects
 from ..normalizers.education_normalizer import normalize_education
-from ..normalizers.experience_normalizer import normalize_experience
+from ..normalizers.experience_normalizer import (
+    normalize_experience,
+    calculate_total_experience,
+)
 from ..normalizers.skill_normalizer import normalize_skills
 
 from ..analyzers.completeness_analyzer import analyze_completeness
 from ..analyzers.quality_analyzer import analyze_quality
 from ..analyzers.formatting_analyzer import analyze_formatting
 from ..analyzers.skill_experience_analyzer import process_skill_experience
+
 
 async def process_resume(file:UploadFile):
     if file.content_type != "application/pdf":
@@ -35,6 +40,8 @@ async def process_resume(file:UploadFile):
     text_blocks = extract_text_blocks(content)
     
     links = extract_links(content)
+    
+    linkedin = extract_linkedin(links)
 
     cleaned_text = clean_text(text)
 
@@ -78,12 +85,12 @@ async def process_resume(file:UploadFile):
         "name": name,
         "email": email,
         "phone": phone,
-        "linkedin": None,
         "sections": sections,
         "education": education,
         "experience": experience,
         "projects": projects,
         "skills": skills,
+        "linkedin": linkedin,
         "unknown_skills": unknown_skills,
         "total_experience_months":total_experience_months,
         "skill_experience": skill_experience,
@@ -99,6 +106,7 @@ async def process_resume(file:UploadFile):
         "email":email,
         "phone":phone,
         "name":name,
+        "linkedin": linkedin,
         "sections": sections,
         'education':education,
         'experience':experience,
