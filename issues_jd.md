@@ -87,6 +87,12 @@ Line 3: `Experience: 3+ years`
 Line 4: `Role Overview`
 Output: `"role": null`. Because the role is not preceded by `Role:`, `Position:`, or `Job Title:`, `_extract_role()` fails to detect the job title.
 
+Across 9 real job descriptions tested (Meta, Databricks, Google DeepMind, Siemens, Uber, Stripe, etc.):
+- 5 out of 9 (55%) returned `"role": null`.
+- Google DeepMind used `Title: Research Engineer, Foundation Models` -> `role: null` (fails because `Title:` is not in `ROLE_KEYWORDS`).
+- Meta used `Machine Learning Engineer - Ranking & Recommendations` on Line 1 -> `role: null` (unlabeled first line).
+- Databricks, Siemens, and Uber also placed the job title on the top line without a label prefix -> all returned `role: null`.
+
 ROLE_KEYWORDS:
 ```python
 {"role", "position", "job title"}
@@ -94,10 +100,12 @@ ROLE_KEYWORDS:
 Any JD that doesn't use one of these three exact label words cannot have its role extracted.
 
 ### Expected
-A robust parser should attempt to extract the role from the first substantive line (if no label is found), or from a known positional pattern (e.g., the title before the company name, or the first bolded/all-caps line). At minimum, common variants like `"Title:"`, `"Opening:"`, `"Vacancy:"`, `"We are hiring:"` should be recognized.
+A robust parser should attempt to extract the role from:
+1. Recognized label prefixes: add `"title"`, `"opening"`, `"vacancy"`, `"we are hiring"` to `ROLE_KEYWORDS`.
+2. Positional heuristics: if no labeled prefix is found, inspect the first non-empty substantive line before the first section header (e.g. before `About the Role`, `Responsibilities`, etc.).
 
 ### Impact
-For the majority of real-world JDs (which don't use a labeled `Role:` field), `role` is `null`. Downstream matching has no role to compare against. ATS-style filtering by role/title cannot function.
+For the majority of real-world JDs (55% failure rate), `role` is `null`. Downstream matching has no role to compare against. ATS-style filtering by role/title cannot function.
 
 ### Likely Area
 `src/configs/jd_configs.py` — `ROLE_KEYWORDS`. `src/parsers/jd_parser.py` — `_extract_role()`.
@@ -666,26 +674,116 @@ OPEN
 
 ---
 
+## JD-017: `YOE_PATTERN` fails to extract required experience when formatted as `Minimum X+ years` with trailing qualifier or domain modifier
+
+- **Source:** Real JDs — JD-01 (Meta), JD-04 (Databricks), JD-05 (Stripe), JD-08 (Uber) (Migrated from R-042)
+- **Category:** Information Loss / Regex Limitation
+- **Severity:** P1
+
+### Observed
+In `src/parsers/jd_parser.py`:
+`YOE_PATTERN` has a strict negative lookahead `(?!\s+(?:with|in)\b)`:
+```python
+YOE_PATTERN = re.compile(
+    r"""
+    \b(?:minimum|at\s+least)?\s*
+    (\d+)\+?
+    \s+(?:years?|yrs?)
+    \s+(?:of\s+)?
+    (?:professional\s+)?
+    (?:industry\s+)?
+    experience\b
+    (?!\s+(?:with|in)\b)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+```
+When a real JD specifies:
+- `Minimum 4+ years of professional experience in applied machine learning` (Meta) -> rejected by `(?!\s+(?:with|in)\b)` because of trailing `in applied machine learning`.
+- `Minimum 3 years of software engineering experience` (Databricks) -> rejected because `software engineering` is not matched by `(?:professional\s+)?(?:industry\s+)?`.
+- `5+ years of software engineering or machine learning experience` (Uber) -> rejected for the same reason.
+Consequently, `_extract_experience()` returns `None`.
+
+### Source Evidence
+In 8 out of 9 real JDs tested (89%), `experience_months` was returned as `None`, despite explicit years of experience requirements in the text.
+
+### Expected
+The regex should permit flexible domain modifiers (e.g. `software engineering`, `applied machine learning`, `relevant`, `related`) and allow trailing `in <domain>` or `with <domain>` clauses when extracting overall experience requirements.
+
+### Impact
+ATS minimum experience filters fail to extract tenure constraints from the vast majority of real job postings (89% failure rate).
+
+### Likely Area
+`src/parsers/jd_parser.py` — `YOE_PATTERN` and `_extract_experience()`.
+
+### Status
+OPEN
+
+---
+
+## JD-018: JD Parser lacks structured section detector — flattens document into raw lines causing context loss across sections
+
+- **Source:** Multi-section JDs (Synthetic & Real)
+- **Category:** Architecture / Section Detection
+- **Severity:** P1
+
+### Observed
+Unlike the resume processing pipeline which employs a dedicated `section_detector.py` to identify canonical section boundaries (`detect_sections()`), the JD parser (`src/parsers/jd_parser.py`) processes the entire job description as an unsegmented list of strings (`list[str]`).
+The only section mechanism is `_filter_noise_sections()`, a brittle state machine looking for `NOISE_SECTION_HEADERS` and `JD_SECTION_HEADERS`.
+
+As a consequence:
+1. **Context Loss for Requirements (JD-004):** Lines under `Requirements:`, `Minimum Qualifications:`, and `Preferred Qualifications:` are not associated with a parent section object. The parser must guess line-by-line using `_classify_skill_requirement(line)`, leading to widespread misclassification or `unknown` tags.
+2. **Brittle Noise Filtering (JD-006, JD-009, JD-015):** Because there is no structured AST/section hierarchy, noise filtering relies on exact string equality on line headers. If a noise section uses decorated text (`About Us - Our Story`), noise mode fails to activate. If valid content appears after a noise section with an unlisted header, valid content is silently dropped.
+3. **Unstructured Output (JD-008, JD-014):** Skills, requirements, and qualifications cannot be related back to their respective sections (e.g., distinguishing "Required Skills" from "Nice-to-Have Skills" or extracting education requirements from an "Education & Certifications" section).
+
+### Source Evidence
+In `src/parsers/jd_parser.py`:
+`parse_jd(text)` splits `text.splitlines()` into `jd_lines` and passes the flat list to `_filter_noise_sections(jd_lines)`, `_extract_role(clean_jd)`, `_extract_skills(clean_jd)`, `_extract_experience(clean_jd)`. No section boundaries or tokens are constructed.
+
+### Expected
+Implement a dedicated section detector for JDs (`detect_jd_sections()` or adapt `detect_sections()`) with canonical headers:
+- `ROLE_OVERVIEW` / `ABOUT_THE_ROLE`
+- `REQUIREMENTS` / `BASIC_QUALIFICATIONS` / `MINIMUM_QUALIFICATIONS`
+- `PREFERRED_QUALIFICATIONS` / `BONUS` / `DESIRED`
+- `RESPONSIBILITIES` / `WHAT_YOU_WILL_DO`
+- `BENEFITS` / `PERKS`
+- `COMPANY_INFO` / `ABOUT_US` (Noise)
+- `EQUAL_OPPORTUNITY` (Noise)
+
+Parsed sections should form an intermediate representation where downstream extractors (skills, role, experience, education) operate on their designated section scopes.
+
+### Impact
+JD parsing remains fragile, context-blind, and incapable of reliably distinguishing required from optional qualifications.
+
+### Likely Area
+`src/parsers/jd_parser.py`, `src/configs/jd_configs.py`, and a new or shared section detector.
+
+### Status
+OPEN
+
+---
+
 ## Audit Summary — JD Parser
 
 | | |
 |---|---|
-| **Documents tested** | 10 synthetic JD inputs + 1 real-world PDF fixture (`jd_ml_engineer_test.pdf`) |
-| **Unique issues found** | 16 |
+| **Documents tested** | 10 synthetic JD inputs + 1 real-world PDF fixture (`jd_ml_engineer_test.pdf`) + 9 real production JDs |
+| **Unique issues found** | 18 |
 
 ### Issues by Severity
 
 | Severity | Count | IDs |
 |---|---|---|
 | P0 | 1 | JD-001 |
-| P1 | 5 | JD-002, JD-003, JD-004, JD-009, JD-016 |
+| P1 | 7 | JD-002, JD-003, JD-004, JD-009, JD-016, JD-017, JD-018 |
 | P2 | 8 | JD-005, JD-006, JD-007, JD-008, JD-011, JD-012, JD-013, JD-014 |
 | P3 | 2 | JD-010, JD-015 |
 
 ### Top 5 Highest-Priority Issues
 
 1. **JD-001 (P0)** — Only 17 skills recognized; any other skill (TensorFlow, PyTorch, MongoDB, scikit-learn, MLflow, etc.) is silently dropped — verified with Data Science JD and `jd_ml_engineer_test.pdf`.
-2. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
-3. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for the majority of real-world JD formats, including `jd_ml_engineer_test.pdf`.
-4. **JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) unparsed by `YOE_PATTERN`, leaving `experience_months: null`.
-5. **JD-003 (P1)** — `skill_specific_experience` misses `N years of experience in <skill>` and key-value `<skill>: N+ years` phrasings.
+2. **JD-018 (P1)** — Lack of structured section detection architecture causes total context loss between requirements, responsibilities, and noise.
+3. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
+4. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for 55% of real-world JD formats (Meta, DeepMind, Databricks, Uber).
+5. **JD-017 / JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) and domain qualifiers (`4+ years in ML`, `software engineering`) unparsed by `YOE_PATTERN` (89% failure rate on real JDs).
+

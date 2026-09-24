@@ -15,12 +15,14 @@ This report documents the fixes committed in `e72a322`, audits the hardening and
 | Issue ID | Severity | Problem Summary | Fix Status | Verification Status |
 |---|---|---|---|---|
 | **R-001** | **P0** | Skills parser dropped all skills on lines without colons | **FIXED** | Verified (22 parser tests + PDF tests) |
+| **R-002** | **P0** | LinkedIn URL extracted from PDF links never surfaced in output | **FIXED** | Verified (`extract_linkedin()` in `resume_metadata_utils.py` + `resume_service.py`) |
 | **R-004** | **P1** | Wrapped bullet lines split/dropped in experience parser | **FIXED** | Verified (Experience parser tests + PDF tests) |
 | **R-008** | **P1** | First experience bullet dropped `"10 percent page loading."` | **FIXED** | Verified (`HARSHIT_WEBDEV.pdf` extraction) |
 | **R-009** | **P0** | Multi-page PDF wrapped lines created phantom projects | **PARTIALLY FIXED** | `HTML, CSS` eliminated; `CSS` phantom project still persists |
 | **R-010** | **P2** | Skills parser stopped at first section header / dropped multiple skills sections | **FIXED** | Verified in Phase 4.5 Day 3 (`detect_sections` merges canonical skills sections) |
 | **R-013** | **P1** | `quality_analyzer` crashes with `TypeError` on `None` year | **FIXED** | Verified in `test_quality_analyzers.py` (null guards in place) |
 | **R-033** | **P2** | Non-standard sections (`INTERESTS`, `ABOUT ME`, `SUMMARY`) caused boundary bleed | **PARTIALLY FIXED** | Verified in `header_configs.py` (registered in `SECTION_HEADERS`) |
+| **R-037** | **P1** | Section detector missed `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, `AREAS OF EXPERTISE` | **PARTIALLY FIXED** | Verified in `header_configs.py` (added to `SECTION_HEADERS` & `SECTION_ALIASES`) |
 
 ---
 
@@ -93,6 +95,35 @@ This report documents the fixes committed in `e72a322`, audits the hardening and
 
 ---
 
+### 2.4 R-002 (P0): LinkedIn URL Extraction Integration
+* **Root Cause:** In earlier versions of `resume_service.py`, `linkedin` was hard-coded to `None` despite `extract_links()` capturing all hyperlinks from the PDF document.
+* **Changes in Phase 4.5 Day 4/5:**
+  - Implemented `extract_linkedin(links: list[dict]) -> str | None` in [`src/utils/resume_metadata_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/resume_metadata_utils.py).
+  - Wired `extract_linkedin()` into [`src/services/resume_service.py`](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py) (line 44):
+    ```python
+    linkedin = extract_linkedin(links)
+    ```
+  - Added `linkedin` to `resume_data` (line 93) and the final return payload (line 109).
+* **Verification Evidence:**
+  - Service tests in `tests/services/test_resume_service.py` pass.
+  - On `HARSHIT_WEBDEV.pdf`: `linkedin` now correctly resolves to `"https://www.linkedin.com/in/abhinav-pratap-singh-1a8a57200/"`.
+
+---
+
+### 2.5 R-037 (P1): Section Detector Alternate Headings
+* **Root Cause:** In [`src/configs/header_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/header_configs.py), `SECTION_HEADERS` lacked standard industry aliases like `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, and `AREAS OF EXPERTISE`, causing resumes using these headings to suffer total boundary failure.
+* **Changes in Phase 4.5 Day 4:**
+  - Added `"WORK HISTORY"`, `"ACADEMIC QUALIFICATIONS"`, and `"AREAS OF EXPERTISE"` to `SECTION_HEADERS`.
+  - Added mapping entries to `SECTION_ALIASES`:
+    - `"work history": "experience"`
+    - `"academic qualifications": "education"`
+    - `"areas of expertise": "skills"`
+* **Verification Status:**
+  - Configuration updated and passing existing unit/service test suite.
+  - Pending action: Full re-run against fixture `R10_Alternate_Headings.pdf` to record entity extraction counts in the audit ledger.
+
+---
+
 ## 3. Hardening Test Suite Execution
 
 ### 3.1 Parser Suite (Target of commit `e72a322`)
@@ -111,7 +142,7 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 * **Name:** `Abhinav Pratap Singh`
 * **Email:** `apsbqt@gmail.com`
 * **Phone:** `+91 9774913812`
-* **LinkedIn:** `None` (R-002 still OPEN)
+* **LinkedIn:** `https://www.linkedin.com/in/abhinav-pratap-singh-1a8a57200/` (R-002 **FIXED** ✅)
 * **Education Count:** 3
 * **Experience Count:** 1 (`Gosotek` — duration `January - February, 2024`, 3 bullet points with continuation intact)
 * **Projects Count:** 3 (`Bloger`, `Weather Sphere`, `PrompTopic` — all with accurate metadata URLs and complete descriptions)
@@ -135,7 +166,7 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 | ID | Title | Severity | Status | Notes |
 |---|---|---|---|---|
 | **R-001** | Skills parser drops skills on lines without colon | P0 | **FIXED** | Added candidate splitting, delimiter support, category header filter |
-| **R-002** | LinkedIn URL extracted from PDF links never surfaced | P0 | **OPEN** | Hard-coded to `None` in `resume_service.py` line 69 |
+| **R-002** | LinkedIn URL extracted from PDF links never surfaced | P0 | **FIXED** | Resolved via `extract_linkedin()` in `resume_service.py` |
 | **R-003** | Name parser returns first non-empty line unconditionally | P1 | **OPEN** | Needs contact-line skipping heuristics |
 | **R-004** | Wrapped bullet lines split/dropped in experience parser | P1 | **FIXED** | Added `description_started` state in `_parse_experience` |
 | **R-005** | Experience parser assumes `block[i-1]` is company | P1 | **OPEN** | Layout assumption |
@@ -170,12 +201,12 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 | **R-034** | Multi-page repeated canonical experience sections dropped | P0 | **OPEN** | Discovered in real validation (`R04_MultiPage_Executive.pdf`) |
 | **R-035** | Project parser mutates title block into description on bullets | P0 | **OPEN** | Discovered in real validation (Unicode / font-glyph bullets) |
 | **R-036** | `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Doctor`) | P1 | **OPEN** | Discovered in real validation (`R03_Senior_Staff_ML.pdf`) |
-| **R-037** | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` | P1 | **OPEN** | Discovered in real validation (`R10_Alternate_Headings.pdf`) |
+| **R-037** | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` | P1 | **PARTIAL** | Added `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, `AREAS OF EXPERTISE` in Day 4 |
 | **R-038** | Multi-page repeated education sections dropped | P1 | **OPEN** | Architectural gap in education parser |
 | **R-039** | Completeness analyzer enforces `projects` as required for all | P2 | **OPEN** | False positive on experienced candidates |
 | **R-040** | Institution detection misses premier national institutes (`IISER`) | P2 | **OPEN** | Discovered in real validation (`R12_No_Experience_BioMed.pdf`) |
-| **R-041** | JD parser misses `Title:` and unlabeled top-line roles | P1 | **OPEN** | Discovered in real JD validation (55% failure rate) |
-| **R-042** | JD YOE pattern fails on `Minimum X+ years` with qualifiers | P1 | **OPEN** | Discovered in real JD validation (89% failure rate) |
+| **R-041** | JD parser misses `Title:` and unlabeled top-line roles | P1 | **MIGRATED** | Migrated to `issues_jd.md` as JD-002 |
+| **R-042** | JD YOE pattern fails on `Minimum X+ years` with qualifiers | P1 | **MIGRATED** | Migrated to `issues_jd.md` as JD-017 |
 
 ---
 
@@ -183,29 +214,37 @@ tests\parsers\test_experience_parser.py ...                              [100%]
 
 | ID | Title | Severity | Status | Notes |
 |---|---|---|---|---|
-| **JD-001** | Skills extraction depends on closed 17-skill list | P0 | **OPEN** | Planned for Day 4 |
-| **JD-002** | Role extraction requires `Role:`, `Position:` label | P1 | **OPEN** | Planned for Day 6 |
-| **JD-003** | `skill_specific_experience` misses `experience in <skill>` | P1 | **OPEN** | Planned for Day 6 |
-| **JD-004** | Section header context not inherited by child lines | P1 | **OPEN** | Planned for Day 5 |
-| **JD-005** | Range format `4-6 years` picks higher number only | P1 | **OPEN** | Planned for Day 6 |
-| **JD-006** | Noise headers require exact lowercase match | P2 | **OPEN** | Planned for Day 6 |
-| **JD-007** | Experience returns `None` when only skill-specific exp exists | P2 | **OPEN** | Planned for Day 6 |
-| **JD-008** | Skills and requirements not linked in unified schema | P2 | **OPEN** | Planned for Day 5 |
-| **JD-009** | Noise section filtering is non-reentrant | P1 | **OPEN** | Planned for Day 6 |
+| **JD-001** | Skills extraction depends on closed 17-skill list | P0 | **OPEN** | Planned for Phase 4.5 Day 7 |
+| **JD-002** | Role extraction requires `Role:`, `Position:` label | P1 | **OPEN** | Enriched with real JD findings (55% fail rate, DeepMind `Title:`); Day 9 |
+| **JD-003** | `skill_specific_experience` misses `experience in <skill>` | P1 | **OPEN** | Planned for Phase 4.5 Day 9 |
+| **JD-004** | Section header context not inherited by child lines | P1 | **OPEN** | Planned for Phase 4.5 Day 8 |
+| **JD-005** | Range format `4-6 years` picks higher number only | P1 | **OPEN** | Planned for Phase 4.5 Day 9 |
+| **JD-006** | Noise headers require exact lowercase match | P2 | **OPEN** | Planned for Phase 4.5 Day 8 |
+| **JD-007** | Experience returns `None` when only skill-specific exp exists | P2 | **OPEN** | Planned for Phase 4.5 Day 9 |
+| **JD-008** | Skills and requirements not linked in unified schema | P2 | **OPEN** | Planned for Phase 4.5 Day 8 |
+| **JD-009** | Noise section filtering is non-reentrant | P1 | **OPEN** | Planned for Phase 4.5 Day 8 |
 | **JD-010** | `KNOWN_SKILLS` tight coupling with YOE pattern | P3 | **OPEN** | Architecture decision |
 | **JD-011** | Experience join text can produce split context matches | P2 | **OPEN** | Line-by-line scanning |
-| **JD-012** | `skill_requirements` classified for every line (noisy) | P2 | **OPEN** | Filter to skill lines |
-| **JD-013** | JD service does not call `clean_text` before parsing | P2 | **OPEN** | Preprocessing gap |
-| **JD-014** | Education requirements not in JD output schema | P2 | **OPEN** | Schema gap |
-| **JD-015** | Noise headers decorated variants (`About Us - Our Story`) | P3 | **OPEN** | Prefix/regex matching |
+| **JD-012** | `skill_requirements` classified for every line (noisy) | P2 | **OPEN** | Filter to skill lines; Day 10 |
+| **JD-013** | JD service does not call `clean_text` before parsing | P2 | **OPEN** | Preprocessing gap; Day 7 |
+| **JD-014** | Education requirements not in JD output schema | P2 | **OPEN** | Schema gap; Day 10 |
+| **JD-015** | Noise headers decorated variants (`About Us - Our Story`) | P3 | **OPEN** | Prefix/regex matching; Day 8 |
+| **JD-016** | Labeled experience format (`Experience: 3+ years`) unparsed | P1 | **OPEN** | Prefix label pattern; Day 9 |
+| **JD-017** | `YOE_PATTERN` fails on domain modifiers & lookahead | P1 | **OPEN** | 89% failure rate on real JDs (migrated from R-042); Day 9 |
+| **JD-018** | JD parser lacks structured section detector | P1 | **OPEN** | Architectural section segmentation gap; Day 8 |
 
 ---
 
-## 5. Next Planned Actions
+## 5. Next Planned Actions (Phase 4.5 Day 5 Block 2)
 
-1. **Complete R-009 (Eliminate `CSS` Phantom Project):**
-   - In [`src/utils/text_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/text_utils.py): Refine `_is_project_title(line)` to avoid single-token technology keywords (e.g. checking length or known tools like `CSS`, `HTML`, `SQL`) or checking continuation context from previous line.
-2. **Resolve R-002 (LinkedIn URL extraction):**
-   - In [`src/services/resume_service.py`](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py): Match extracted links against `linkedin.com` and populate `resume_data["linkedin"]`.
-3. **Resolve R-013 (Quality Analyzer crash prevention):**
-   - In [`src/analyzers/quality_analyzer.py`](file:///d:/Projects/resume-intelligence-platform/src/analyzers/quality_analyzer.py): Add null checks before comparing `entry["start_year"] > entry["end_year"]`.
+1. **Resolve Residual P0 Structural & Boundary Issues:**
+   - **R-023:** Add `is_duration(line)` check to `_is_project_title()` in `src/utils/text_utils.py` to prevent dates becoming phantom project titles.
+   - **R-024:** Add `"TECHNOLOGIES"` to `SECTION_HEADERS` and map `"technologies": "skills"` in `SECTION_ALIASES` in `src/configs/header_configs.py`.
+   - **R-025:** Re-order checks in `src/parsers/experience_parser.py` so bullet-prefix check executes BEFORE role keyword check.
+   - **R-035:** Support Unicode bullets (`\u2022`, `\u2023`, `\u25cf`, etc.) in `src/parsers/project_parser.py` to prevent mutating project titles into descriptions.
+   - **R-009:** Eliminate residual single-token `'CSS'` phantom project in `src/utils/text_utils.py` / `src/parsers/project_parser.py`.
+2. **Execute Block 2 Integration Test Contracts:**
+   - Add `test_process_resume_passes_blocks_and_links_to_projects`.
+   - Add `test_process_resume_handles_blank_pdf_without_crashing`.
+   - Add `test_process_resume_propagates_pdf_extraction_error`.
+   - Verify all tests pass to reach **362 passing tests** baseline.

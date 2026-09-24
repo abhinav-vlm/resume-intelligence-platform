@@ -58,7 +58,7 @@ Entire skills section becomes `None` for any resume not using the `Category: val
 
 ---
 
-## R-002: LinkedIn URL extracted from PDF links is never surfaced in the output
+~~## R-002: LinkedIn URL extracted from PDF links is never surfaced in the output~~
 
 - **Source:** `HARSHIT_WEBDEV.pdf`
 - **Category:** Information Loss
@@ -69,10 +69,10 @@ The PDF contains a clickable LinkedIn hyperlink:
 ```
 "url": "https://www.linkedin.com/in/abhinav-pratap-singh-1a8a57200/"
 ```
-`extract_links()` correctly detects this link. However, the resume service hard-codes `"linkedin": None` in `resume_data` and never assigns the LinkedIn URL.
+`extract_links()` correctly detects this link. However, previously the resume service hard-coded `"linkedin": None` in `resume_data` and never assigned the LinkedIn URL.
 
 ```python
-# resume_service.py line 70
+# resume_service.py line 70 (prior implementation)
 "linkedin": None,
 ```
 
@@ -88,13 +88,16 @@ The resume visually shows a LinkedIn icon with a link. The `.txt` fixture also s
 LinkedIn URL should be resolved from the extracted links list and populated in the `linkedin` field of the output.
 
 ### Impact
-`linkedin` is always `None` even when the document contains a LinkedIn URL. The `completeness_analyzer` marks `linkedin` as missing for every resume. Downstream matching and ATS scoring can never use the LinkedIn profile.
+`linkedin` was always `None` even when the document contained a LinkedIn URL. The `completeness_analyzer` marked `linkedin` as missing for every resume.
 
 ### Likely Area
-`src/services/resume_service.py` — the `links` list is obtained but never searched for LinkedIn URLs before building `resume_data`.
+`src/services/resume_service.py` and `src/utils/resume_metadata_utils.py`.
 
 ### Status
-OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 4/5
+- **Validation:** Implemented `extract_linkedin(links)` in `src/utils/resume_metadata_utils.py`. In `src/services/resume_service.py` (line 44), `linkedin = extract_linkedin(links)` is executed and populated in `resume_data["linkedin"]` (lines 93, 109). Unit and service tests passing.
+- **Relevant test:** `tests/services/test_resume_service.py`
 
 ---
 
@@ -1845,17 +1848,17 @@ Add `PHD`, `PH.D`, `DOCTOR`, `DOCTORATE` to `DEGREE_KEYWORDS` and map them to `"
 
 - **ID:** R-037
 - **Title:** Section detector does not recognize `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, or `AREAS OF EXPERTISE`
-- **Status:** OPEN
+- **Status:** PARTIALLY FIXED
 - **Severity:** P1
 - **Category:** Section Detection / Information Loss
 - **Observed in:** `R10_Alternate_Headings.pdf`
 
 #### Observed Behavior
-In `src/configs/header_configs.py`, `SECTION_HEADERS` contains `EXPERIENCE`, `WORK EXPERIENCE`, `PROFESSIONAL EXPERIENCE`, `EDUCATION`, and `SKILLS`, but lacks common synonyms such as:
+In `src/configs/header_configs.py`, `SECTION_HEADERS` previously contained `EXPERIENCE`, `WORK EXPERIENCE`, `PROFESSIONAL EXPERIENCE`, `EDUCATION`, and `SKILLS`, but lacked common synonyms such as:
 - `WORK HISTORY`
 - `ACADEMIC QUALIFICATIONS`, `ACADEMIC BACKGROUND`
 - `AREAS OF EXPERTISE`, `CORE COMPETENCIES`, `TECHNICAL EXPERTISE`
-When a resume uses these headings, `section_detector.py` fails to recognize any section transition. The entire body text is absorbed by the preceding section (or preamble), resulting in empty skills, unextracted education, and unextracted experience.
+When a resume used these headings, `section_detector.py` failed to recognize any section transition. The entire body text was absorbed by the preceding section (or preamble), resulting in empty skills, unextracted education, and unextracted experience.
 
 #### Evidence
 In `R10_Alternate_Headings.pdf`:
@@ -1871,8 +1874,10 @@ Complete parsing failure for resumes using standard alternative section headers.
 #### Likely Component
 `src/configs/header_configs.py` (`SECTION_HEADERS` and `SECTION_ALIASES`).
 
-#### Suggested Future Fix
-Add `WORK HISTORY`, `EMPLOYMENT HISTORY` (mapped to `"experience"`), `ACADEMIC QUALIFICATIONS`, `ACADEMIC BACKGROUND` (mapped to `"education"`), and `AREAS OF EXPERTISE`, `CORE COMPETENCIES` (mapped to `"skills"`) to `SECTION_HEADERS` and `SECTION_ALIASES`.
+#### Resolution & Remaining Scope
+- **Partially Fixed in:** Phase 4.5 Day 4
+- **Applied Changes:** Added `WORK HISTORY` (mapped to `"experience"`), `ACADEMIC QUALIFICATIONS` (mapped to `"education"`), and `AREAS OF EXPERTISE` (mapped to `"skills"`) to `SECTION_HEADERS` and `SECTION_ALIASES` in `src/configs/header_configs.py`.
+- **Remaining Scope:** Re-validate `R10_Alternate_Headings.pdf` against full pipeline to confirm extracted entities in the audit corpus; add secondary synonyms (`ACADEMIC BACKGROUND`, `CORE COMPETENCIES`, `EMPLOYMENT HISTORY`).
 
 ---
 
@@ -1983,39 +1988,13 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 
 - **ID:** R-041
 - **Title:** JD Parser `ROLE_KEYWORDS` misses common title labels such as `Title:` and fails on unlabelled top-line job titles
-- **Status:** OPEN
+- **Status:** MIGRATED TO issues_jd.md (JD-002)
 - **Severity:** P1
-- **Category:** Information Loss / Generalization
+- **Category:** Information Loss / Generalization (JD Domain)
 - **Observed in:** JD-01 (Meta), JD-04 (Databricks), JD-06 (Google DeepMind), JD-07 (Siemens), JD-08 (Uber)
 
-#### Observed Behavior
-In `src/parsers/jd_parser.py`:
-```python
-def _extract_role(jd: list[str]) -> str | None:
-    for line in jd:
-        if ":" in line:
-            key, value = line.split(":", 1)
-            if key.strip().lower() in ROLE_KEYWORDS:
-                return value.strip()
-    return None
-```
-`ROLE_KEYWORDS` only includes `{"role", "position", "job title"}`. If a job posting uses `Title:` (as Google DeepMind does), or places the job title on the first non-empty line without a colon prefix (as Meta, Databricks, Siemens, and Uber do), `_extract_role()` returns `None`.
-
-#### Evidence
-Across 9 real job descriptions tested:
-- 5 out of 9 (55%) returned `"role": null`.
-- DeepMind used `Title: Research Engineer, Foundation Models` -> `role: null`.
-- Meta used `Machine Learning Engineer - Ranking & Recommendations` on Line 1 -> `role: null`.
-
-#### Impact
-Matching engines cannot compare candidate target roles against job titles for the majority of real-world job descriptions.
-
-#### Likely Component
-`src/configs/jd_configs.py` (`ROLE_KEYWORDS`) and `src/parsers/jd_parser.py` (`_extract_role`).
-
-#### Suggested Future Fix
-1. Add `"title"` to `ROLE_KEYWORDS`.
-2. Implement fallback extraction to inspect the first non-empty substantive line before the first section header.
+> [!NOTE]
+> This issue belongs strictly to the Job Description (JD) parsing domain. It has been consolidated into [`issues_jd.md`](file:///d:/Projects/resume-intelligence-platform/issues_jd.md) under **JD-002** with complete real-world evidence and recommendations.
 
 ---
 
@@ -2023,46 +2002,13 @@ Matching engines cannot compare candidate target roles against job titles for th
 
 - **ID:** R-042
 - **Title:** JD Experience Parser `YOE_PATTERN` fails to extract required experience when formatted as `Minimum X+ years` with trailing qualifier
-- **Status:** OPEN
+- **Status:** MIGRATED TO issues_jd.md (JD-017)
 - **Severity:** P1
-- **Category:** Information Loss / Regex Limitation
+- **Category:** Information Loss / Regex Limitation (JD Domain)
 - **Observed in:** JD-01 (Meta), JD-04 (Databricks), JD-05 (Stripe), JD-08 (Uber)
 
-#### Observed Behavior
-In `src/parsers/jd_parser.py`:
-`YOE_PATTERN` has a strict negative lookahead:
-```python
-YOE_PATTERN = re.compile(
-    r"""
-    \b(?:minimum|at\s+least)?\s*
-    (\d+)\+?
-    \s+(?:years?|yrs?)
-    \s+(?:of\s+)?
-    (?:professional\s+)?
-    (?:industry\s+)?
-    experience\b
-    (?!\s+(?:with|in)\b)
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-```
-When a real JD specifies:
-- `Minimum 4+ years of professional experience in applied machine learning` (Meta) -> rejected by `(?!\s+(?:with|in)\b)`
-- `Minimum 3 years of software engineering experience` (Databricks) -> rejected because `software engineering` is not matched by `(?:professional\s+)?(?:industry\s+)?`
-- `5+ years of software engineering or machine learning experience` (Uber) -> rejected for the same reason.
-Consequently, `_extract_experience()` returns `None`.
-
-#### Evidence
-In 8 out of 9 real JDs tested (89%), `experience_months` was returned as `None`, despite explicit years of experience requirements in the text.
-
-#### Impact
-ATS minimum experience filters fail to extract tenure constraints from the vast majority of real job postings.
-
-#### Likely Component
-`src/parsers/jd_parser.py` (`YOE_PATTERN` and `_extract_experience`).
-
-#### Suggested Future Fix
-Permit flexible domain modifiers (e.g. `software engineering`, `applied machine learning`, `relevant`, `related`) and allow trailing `in <domain>` clauses when extracting overall experience.
+> [!NOTE]
+> This issue belongs strictly to the Job Description (JD) parsing domain. It has been consolidated into [`issues_jd.md`](file:///d:/Projects/resume-intelligence-platform/issues_jd.md) as **JD-017** with complete regex breakdown, failure rates (89%), and recommended fixes.
 
 ---
 
@@ -2071,7 +2017,7 @@ Permit flexible domain modifiers (e.g. `software engineering`, `applied machine 
 | Issue ID | Severity | Category | Status | Fixed In | Summary Title |
 |---|---|---|---|---|---|
 | **R-001** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Skills parser drops no-colon skills |
-| **R-002** | P0 | Info Loss | **OPEN** | — | LinkedIn URL extracted from PDF links is never surfaced |
+| **R-002** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 4/5 | LinkedIn URL extracted from PDF links is never surfaced |
 | **R-003** | P1 | Incorrect Ext | **OPEN** | — | Name parser returns first non-empty line unconditionally |
 | **R-004** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Wrapped experience bullets split into orphan line |
 | **R-005** | P1 | Incorrect Ext | **OPEN** | — | Experience parser previous-line company assumption |
@@ -2106,17 +2052,258 @@ Permit flexible domain modifiers (e.g. `software engineering`, `applied machine 
 | **R-034** | P0 | Architecture | **OPEN** | — | Multi-page repeated canonical experience sections dropped |
 | **R-035** | P0 | Info Loss | **OPEN** | — | Project parser mutates title block into description on bullets |
 | **R-036** | P1 | Generalization| **OPEN** | — | `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Doctor`) |
-| **R-037** | P1 | Section Det | **OPEN** | — | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` |
+| **R-037** | P1 | Section Det | **PARTIAL** | Phase 4.5 Day 4 | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` |
 | **R-038** | P1 | Architecture | **OPEN** | — | Multi-page repeated education sections dropped |
 | **R-039** | P2 | Domain Logic | **OPEN** | — | Completeness analyzer enforces `projects` as required for all |
 | **R-040** | P2 | Keyword Cov | **OPEN** | — | Institution detection misses premier national institutes (`IISER`) |
-| **R-041** | P1 | Generalization| **OPEN** | — | JD parser misses `Title:` and unlabeled top-line roles |
-| **R-042** | P1 | Regex Limit | **OPEN** | — | JD YOE pattern fails on `Minimum X+ years` with qualifiers |
+| **R-041** | P1 | Generalization| **MIGRATED**| issues_jd.md | JD parser misses `Title:` and unlabeled top-line roles (JD-002) |
+| **R-042** | P1 | Regex Limit | **MIGRATED**| issues_jd.md | JD YOE pattern fails on `Minimum X+ years` with qualifiers (JD-017) |
 
 ### Status Ledger Summary
-- **Total Documented Issues:** 42
-- **FIXED:** 5 (R-001, R-004, R-008, R-010, R-013)
-- **PARTIAL:** 2 (R-009, R-033)
-- **OPEN:** 35
+- **Total Resume Issues Documented:** 40 (R-001 through R-040)
+- **FIXED:** 6 (R-001, R-002, R-004, R-008, R-010, R-013)
+- **PARTIALLY FIXED:** 3 (R-009, R-033, R-037)
+- **OPEN:** 31
+- **MIGRATED TO JD DOMAIN:** 2 (R-041 -> JD-002, R-042 -> JD-017)
 - **REGRESSIONS:** 0
+
+---
+
+## 5. Resume Pipeline Integration & Testing Plan (Migrated from issue.md)
+
+### A. Current Status & Verified Baseline
+
+- **Current Block Status:** Block 1 = **COMPLETE** ✅
+- **Full Test Suite Baseline:** **359 passed**, 0 failed
+- **Active Warnings:**
+  - `PytestCacheWarning`: `could not create cache path D:\Projects\resume-intelligence-platform\.pytest_cache\v\cache\nodeids: [WinError 5] Access is denied`
+  - **Classification:** Local Windows filesystem permissions issue on `.pytest_cache`. Tracked separately from functional test failures. It does **not** represent a product defect or test assertion failure.
+- **Baseline Checkpoint:**
+  > **Checkpoint:** `359 passing before Block 2 changes.`
+  > All subsequent blocks must preserve this green baseline without modifying or weakening existing tests.
+
+---
+
+### B. Test-First Execution Protocol
+
+For every block from Block 2 onward, execution must follow this strict 8-step protocol:
+1. **Inspect current implementation:** Read active service and parser code to establish existing runtime behavior.
+2. **Identify the contract:** Explicitly state the contract between components (inputs, outputs, exceptions).
+3. **Write/adjust focused tests:** Write targeted tests asserting observable contracts. Avoid testing internal implementation details.
+4. **Run focused tests:** Execute only the newly added/modified test subset (`pytest <test_file> -k <test_name>`).
+5. **Fix production code only if required:** Modify production code **only** when active implementation violates the intended contract.
+6. **Run complete suite:** Execute `pytest` across the entire workspace.
+7. **Record test count:** Log the new passing test baseline (e.g., `359 + N passing`).
+8. **Mark block complete:** Check off acceptance criteria and set the regression checkpoint.
+
+---
+
+### C. Block 2: PDF Ingestion & Raw Extraction Boundary
+
+#### Objective
+Verify the boundary between raw PDF upload ingestion and low-level extraction functions ([`extract_text`](file:///d:/Projects/resume-intelligence-platform/src/parsers/pdf_parser.py), [`extract_text_blocks`](file:///d:/Projects/resume-intelligence-platform/src/parsers/pdf_parser.py), [`extract_links`](file:///d:/Projects/resume-intelligence-platform/src/parsers/pdf_parser.py)), confirming consistent byte routing, downstream text/block/link wiring, edge cases, and failure propagation behavior.
+
+#### Scope
+
+- **B2.1 Upload Content Handling:**
+  - Verify that `file.read()` bytes are read once and passed identically to `extract_text()`, `extract_text_blocks()`, and `extract_links()`.
+  - *Existing Coverage Note:* Fully covered in Block 1 by `test_process_resume_passes_uploaded_content_to_pdf_pipeline` in `tests/services/test_resume_service.py`. **Do not duplicate.**
+
+- **B2.2 Extraction Integration:**
+  - Verify that extracted text flows into [`clean_text()`](file:///d:/Projects/resume-intelligence-platform/src/parsers/text_parser.py) and downstream section/contact detection.
+  - Verify that `extract_text_blocks` output and `extract_links` output flow directly as inputs to [`process_projects(text_blocks, links)`](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py).
+  - *Existing Coverage Note:* Text flow into `clean_text` and `detect_sections` is covered by `test_process_resume_detects_sections_from_cleaned_text`. The passing of `text_blocks` and `links` into `process_projects` is not yet asserted at the service integration level.
+
+- **B2.3 Edge Cases:**
+  - **Blank / Text-Free PDF:** When a valid PDF contains no extractable text (e.g. blank page), `extract_text()` returns `""`, `extract_text_blocks()` returns `[]`, and `extract_links()` returns `[]`. The service must execute without crashing, returning empty lists/None for downstream extracted entities.
+  - **Empty Byte Stream (`b""`):** Passing empty bytes causes PyMuPDF to raise `pymupdf.EmptyFileError`. The service contract does not trap this; it propagates as an unhandled extraction error.
+
+- **B2.4 Failure Behavior:**
+  - **Current Runtime Contract:** [`process_resume()`](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py) does **not** wrap PDF extraction calls in `try...except`.
+  - When an underlying extraction function raises an exception (e.g. `pymupdf.FileDataError` on corrupt bytes, or `pymupdf.EmptyFileError` on empty stream), the exception **propagates directly to the caller**.
+  - *Contract Rule:* Do **not** invent a defensive `{"error": ...}` catch block for corrupt PDF bytes unless an explicit API contract change is approved. Document and test the existing propagation contract.
+
+#### Existing Coverage
+
+| Test | Location | What is Covered |
+|---|---|---|
+| `test_process_resume_rejects_non_pdf` | `tests/services/test_resume_service.py:567` | Non-PDF content-type rejection |
+| `test_process_resume_does_not_process_non_pdf` | `tests/services/test_resume_service.py:582` | Short-circuit before parser invocation |
+| `test_process_resume_passes_uploaded_content_to_pdf_pipeline` | `tests/services/test_resume_service.py:606` | B2.1: identical bytes passed to text, blocks, links |
+| `test_process_resume_detects_sections_from_cleaned_text` | `tests/services/test_resume_service.py:735` | B2.2 (partial): text flows to cleaner and section detector |
+| `test_extract_text` | `tests/parsers/test_pdf_parser.py:5` | Direct unit test for `extract_text` |
+| `test_extract_text_blocks` | `tests/parsers/test_pdf_parser.py:22` | Direct unit test for `extract_text_blocks` |
+| `test_extract_links` | `tests/parsers/test_pdf_parser.py:46` | Direct unit test for `extract_links` |
+
+#### Tests to Add
+
+1. **`test_process_resume_passes_blocks_and_links_to_projects`** (`tests/services/test_resume_service.py`):
+   - Monkeypatch `extract_text_blocks` to return a sentinel block list `[{"text": "Project A", ...}]`.
+   - Monkeypatch `extract_links` to return a sentinel link list `[{"url": "https://github.com/..."}]`.
+   - Monkeypatch `process_projects` to record received arguments.
+   - Assert `process_projects` received the exact block and link data returned by the extractors.
+2. **`test_process_resume_handles_blank_pdf_without_crashing`** (`tests/services/test_resume_service.py`):
+   - Monkeypatch `extract_text` -> `""`, `extract_text_blocks` -> `[]`, `extract_links` -> `[]`.
+   - Assert result is a valid dict with `sections == []`, `skills == []`, `experience == []`, `education == None`, and valid analyzer outputs.
+3. **`test_process_resume_propagates_pdf_extraction_error`** (`tests/services/test_resume_service.py`):
+   - Monkeypatch `extract_text` to raise `pymupdf.FileDataError("Failed to open stream")`.
+   - Assert `pytest.raises(pymupdf.FileDataError)` when calling `process_resume()`, locking down the existing propagation contract.
+
+#### Production Changes Required
+- **None expected.** Current implementation in [`src/services/resume_service.py`](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py) already aligns with these contracts. Production code will only be changed if a test exposes an unintended deviation.
+
+#### Acceptance Criteria
+- [ ] B2.1: Upload byte consistency verified (covered by existing B1 test).
+- [ ] B2.2: Blocks and links integration with `process_projects` asserted.
+- [ ] B2.3: Blank PDF text scenario validated with graceful empty output.
+- [ ] B2.4: Extraction failure propagation locked down by contract test.
+- [ ] Full test suite passes with **362 passing tests** (359 baseline + 3 new tests).
+- [ ] 0 regressions across existing test suite.
+
+#### Regression Checkpoint
+- **Target:** 362 passed, 0 failed.
+
+---
+
+### D. Subsequent Blocks Roadmap (In Dependency Order)
+
+```
+[Block 1: Service Entry & PDF Content Type] (COMPLETE - 359 tests)
+                      │
+                      ▼
+[Block 2: PDF Ingestion & Raw Extraction Boundary] (NEXT - 3 tests)
+                      │
+                      ▼
+[Block 3: Preamble, Contact & LinkedIn Integration]
+                      │
+                      ▼
+[Block 4: Section Routing & Canonical Aggregation]
+                      │
+                      ▼
+[Block 5: Normalization & Tenuring Calculation Pipeline]
+                      │
+                      ▼
+[Block 6: Downstream Quality, Formatting & Completeness Analyzers]
+                      │
+                      ▼
+[Block 7: End-to-End Schema Contract & Real-Resume Regression]
+```
+
+---
+
+#### Block 3: Preamble, Contact Info & LinkedIn Integration
+
+- **Objective:** Verify candidate header extraction (name, email, phone) and resolve the unpopulated `linkedin` contract.
+- **Scope:**
+  - Verify `clean_text` feeds [`extract_email()`](file:///d:/Projects/resume-intelligence-platform/src/parsers/email_parser.py), [`extract_phone()`](file:///d:/Projects/resume-intelligence-platform/src/parsers/phone_parser.py), and [`extract_name()`](file:///d:/Projects/resume-intelligence-platform/src/parsers/name_parser.py).
+  - Verify missing/empty contact details return `None` without crashing.
+  - Address **R-002**: LinkedIn URL extraction resolved via `extract_linkedin(links)`.
+- **Existing Coverage:** Unit tests exist for email, phone, name parsers. Resume service wiring asserted.
+- **Tests to Add:**
+  - Integration test for candidate contact extraction wiring.
+  - Integration test asserting LinkedIn URL extraction from `extract_links()` output into `resume_data["linkedin"]`.
+- **Production Changes:** LinkedIn URL extraction implemented.
+- **Acceptance Criteria:** LinkedIn URL correctly populated when present; contact fields populate cleanly.
+- **Regression Checkpoint:** Test baseline updated and verified green.
+
+---
+
+#### Block 4: Section Routing & Canonical Aggregation
+
+- **Objective:** Verify that section detector outputs are cleanly routed to specialized parsers, and that repeated/multi-page canonical sections are aggregated.
+- **Scope:**
+  - Skills section routing: All sections where `section["name"] == "skills"` aggregated before calling `extract_skills()` (R-010).
+  - Experience section routing: All sections where `section["name"] == "experience"` aggregated before calling `process_experience()` (R-034).
+  - Education section routing: All sections where `section["name"] == "education"` aggregated before calling `process_education()` (R-038).
+  - Alternate headings routing: Headings like `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, `AREAS OF EXPERTISE` routed to canonical sections (R-037).
+- **Existing Coverage:** Unit tests for `detect_sections` and section aliases in [`tests/parsers/test_section_detector.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_section_detector.py).
+- **Tests to Add:**
+  - Service-level integration tests verifying multi-section concatenation for experience, education, and skills.
+  - Service-level verification that unmapped non-standard sections (e.g. `certifications`, `publications`, `achievements`) do not bleed into parser inputs.
+- **Production Changes:** Only if multi-section aggregation reveals edge cases in line separation.
+- **Acceptance Criteria:** Multi-page resumes (e.g. `R04_MultiPage_Executive`) preserve entries across page boundaries without truncation.
+- **Regression Checkpoint:** Test baseline updated and verified green.
+
+---
+
+#### Block 5: Normalization & Tenuring Calculation Pipeline
+
+- **Objective:** Ensure parser outputs are consistently normalized and aggregated metrics are accurately computed.
+- **Scope:**
+  - Normalizers: `normalize_skills`, `normalize_education`, `normalize_experience`, `normalize_projects`.
+  - Total experience calculation via `calculate_total_experience` (handling ongoing "Present" tenure, R-030).
+  - `process_skill_experience`: associating skills with duration across normalized experience entries.
+- **Existing Coverage:** Unit tests in `tests/normalizers/` and `tests/analyzers/test_skill_experience_analyzer.py`.
+- **Tests to Add:**
+  - Integration test verifying that normalized data replaces raw parser dicts in `resume_data`.
+  - Integration test verifying `skill_experience` receives normalized `experience` and `skills`.
+- **Production Changes:** Only if contract mismatches exist between parser outputs and normalizer expectations.
+- **Acceptance Criteria:** `total_experience_months` and `skill_experience` accurately computed on realistic fixtures.
+- **Regression Checkpoint:** Test baseline updated and verified green.
+
+---
+
+#### Block 6: Downstream Quality, Formatting & Completeness Analyzers
+
+- **Objective:** Verify downstream analyzers operate reliably without crashing on sparse, unusual, or partial resumes.
+- **Scope:**
+  - `analyze_completeness`: verify required/recommended fields logic (especially for fresher/no-experience resumes, R-039).
+  - `analyze_quality`: safe handling of missing years, None scores, and short descriptions (R-013).
+  - `analyze_formatting`: consistent formatting diagnostics.
+- **Existing Coverage:** Unit tests in `tests/analyzers/`.
+- **Tests to Add:**
+  - Service-level test verifying analyzers run successfully on minimal resumes (e.g. no experience, no projects).
+  - Contract test asserting exact keys returned in `completeness`, `quality_check`, and `formatting_check`.
+- **Production Changes:** None expected unless analyzer contracts deviate from service expectations.
+- **Acceptance Criteria:** Analyzers execute cleanly without exceptions on all 12 corpus profiles.
+- **Regression Checkpoint:** Test baseline updated and verified green.
+
+---
+
+#### Block 7: End-to-End Service Contract & Real-Resume Regression
+
+- **Objective:** Final integration lockdown and full-corpus regression testing.
+- **Scope:**
+  - Complete schema validation of `process_resume` return dictionary.
+  - Regression execution against audit corpus (R01 through R12, including R04 multi-page, R10 alternate headings, R03 ML staff, R12 biomed).
+  - Re-verify full test suite.
+- **Existing Coverage:** End-to-end smoke test in `test_resume_service.py:test_process_resume()`.
+- **Tests to Add:**
+  - Comprehensive contract assertions validating all 15 top-level dictionary keys.
+  - Integration regression assertions against standard PDF fixtures.
+- **Production Changes:** None.
+- **Acceptance Criteria:** 100% green test suite across unit, integration, and corpus validation.
+- **Regression Checkpoint:** Final full-suite pass with zero regressions.
+
+---
+
+### E. Architectural & Testing Principles
+
+1. **Avoid Test Duplication:** Before drafting any new test, check existing parser, normalizer, and service tests. Extend existing test functions with parameterized cases where appropriate instead of creating duplicate scaffolds.
+2. **Observable Contracts over Implementation Details:** Tests must validate observable outputs, returned dictionaries, and exception propagation rather than internal variable naming or private helper sequencing.
+3. **No Unrelated Refactoring:** Never refactor working parsers, normalizers, or analyzers during an integration block unless the block's explicit scope demands it.
+4. **Preserve Green Baseline:** Every block starts and ends with a green test run. Never break existing passing tests to accommodate new ones.
+
+---
+
+### F. Current Execution State
+
+#### Completed
+- **Block 1: Service Entry & PDF Content Type Validation** ✅
+- **Test Baseline:** **359 passed, 0 failed** (1 benign `.pytest_cache` permission warning)
+
+#### Next Immediate Action
+- **Block 2: PDF Ingestion & Raw Extraction Boundary**
+  1. Add `test_process_resume_passes_blocks_and_links_to_projects` to [`tests/services/test_resume_service.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_resume_service.py).
+  2. Add `test_process_resume_handles_blank_pdf_without_crashing` to [`tests/services/test_resume_service.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_resume_service.py).
+  3. Add `test_process_resume_propagates_pdf_extraction_error` to [`tests/services/test_resume_service.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_resume_service.py).
+  4. Run focused tests, then full test suite to reach verified baseline of **362 passing tests**.
+
+#### Subsequent Execution Order
+1. **Block 3:** Preamble, Contact & LinkedIn Integration
+2. **Block 4:** Section Routing & Canonical Aggregation
+3. **Block 5:** Normalization & Tenuring Calculation Pipeline
+4. **Block 6:** Downstream Quality, Formatting & Completeness Analyzers
+5. **Block 7:** End-to-End Service Contract & Real-Resume Regression
+
 
