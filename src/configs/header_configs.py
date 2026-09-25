@@ -14,8 +14,8 @@ SECTION_HEADERS = [
     "ABOUT ME",
     "ACADEMIC ACHIEVEMENTS",
     "INTERESTS",
-
-    # Phase 4.5 Day 4 additions
+    "TECHNOLOGIES",
+    "TECHNOLOGIES & TOOLS",
     "WORK HISTORY",
     "ACADEMIC QUALIFICATIONS",
     "AREAS OF EXPERTISE",
@@ -50,6 +50,8 @@ EXPERIENCE_HEADERS = [
 ]
 
 SECTION_ALIASES = {
+    "technologies": "skills",
+    "technologies & tools": "skills",
     "skills": "skills",
     "technical skills": "skills",
     "non technical skills": "skills",

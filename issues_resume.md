@@ -261,7 +261,10 @@ For non-standard layouts the company field is either `None` or contains the wron
 `src/parsers/experience_parser.py` — `_parse_experience()`, line 51: `experience["company"] = block[i-1]`.
 
 ### Status
-OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Upgraded `contains_keywords()` in `src/utils/text_utils.py` to enforce regex word boundaries (`\b`), preventing false positive role matches in company names (e.g. `Engineering Systems Pvt Ltd`). Consecutive experiences are cleanly segmented upon encountering role lines after duration, and previous-line company extraction is guarded against bullet lines and durations.
+- **Relevant test:** `tests/parsers/test_experience_parser.py` (`test_engineering_does_not_match_engineer_role_keyword`, `test_multiple_experiences_preserve_company_and_role`)
 
 ---
 
@@ -304,7 +307,10 @@ Currently-employed candidates (with `Present` end date) have their experience ex
 `src/configs/text_utils_configs.py` — `DURATION_PATTERNS`. Also `src/normalizers/experience_normalizer.py` — `_normalize_duration()` and `calculate_total_experience()`.
 
 ### Status
-OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Added `Month YYYY - Month YYYY` and `Month YYYY - PRESENT` patterns to `DURATION_PATTERNS` in `src/configs/text_utils_configs.py`. In `src/normalizers/experience_normalizer.py`, mapped `"Present"` to current date (`datetime.now()`), populating current month name and year so active employment is accurately counted in `calculate_total_experience()`.
+- **Relevant test:** `tests/normalizers/test_experience_normalizer.py` (`test_normalize_duration_present_with_abbreviated_month`, `test_normalize_duration_present_with_full_month`, `test_normalize_duration_year_only_present`)
 
 ---
 
@@ -420,11 +426,10 @@ Cross-page text-block continuations should be joined to the previous line, not t
 `src/parsers/project_parser.py` — `_is_project_title()` in `src/utils/text_utils.py` (line 18). It has no heuristics to distinguish a real title from a wrapped line fragment.
 
 ### Status
-- **Status:** PARTIAL
-- **Fixed in:** Phase 4.5 Day 1 (commit `e72a322`)
-- **Validation:** `HTML, CSS` phantom project eliminated via comma check in `_is_project_title` and page change detection in `_extract_projects`.
-- **Relevant test:** `tests/parsers/test_project_parser.py`
-- **Notes:** `CSS` phantom project still persists in `resume_without_experience.pdf` because single-token lines on the same page without commas still pass `_is_project_title("CSS")`.
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Implemented `_is_likely_skill_list()` in `src/utils/text_utils.py` and connected it defensively into `project_parser.py` (`_extract_projects` and `_parse_projects`). Single-token uppercase tech keywords (`CSS`) and comma-separated skill lists (`HTML, CSS`, `React, Node.js`) are safely discarded without becoming phantom project titles or appending to project descriptions. Continuation lines starting with lowercase text on the same page are preserved in bullet descriptions.
+- **Relevant test:** `tests/parsers/test_project_parser.py` (`test_css_alone_does_not_become_phantom_project`, `test_skill_list_is_not_detected_as_project_title`, `test_page_boundary_skill_list_does_not_create_phantom_project`, `test_wrapped_description_with_comma_is_preserved`)
 
 ---
 
@@ -1269,6 +1274,12 @@ Root cause:
 Existing issue:
 New (related to R-009, but specific to intra-page duration lines).
 
+Status:
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Added `is_duration(line)` guard to `_is_project_title()` in `src/utils/text_utils.py` and hardened `DURATION_PATTERNS`. Standalone project duration lines (`2022 - 2024`, `Jan 2022 - Mar 2024`) are rejected as project titles.
+- **Relevant test:** `tests/parsers/test_project_parser.py` (`test_duration_line_is_not_project_title`, `test_date_range_is_not_project_title`)
+
 Recommended direction:
 Integrate a duration check: if `is_duration(line)` is true, attach it to the current project rather than starting a new project block.
 
@@ -1305,6 +1316,12 @@ Root cause:
 Existing issue:
 New.
 
+Status:
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Added `"TECHNOLOGIES"` and `"TECHNOLOGIES & TOOLS"` to `SECTION_HEADERS` and mapped them to `"skills"` in `SECTION_ALIASES` in `src/configs/header_configs.py`. The project parser now cleanly terminates when encountering technologies sections.
+- **Relevant test:** `tests/parsers/test_project_parser.py` (`test_projects_stop_at_technologies_section`, `test_projects_stop_at_technologies_and_tools_section`)
+
 Recommended direction:
 Add `TECHNOLOGIES` to `SECTION_HEADERS` and `SKILL` section configurations, ensuring section-level headers take precedence over category headers when appearing as standalone lines.
 
@@ -1339,6 +1356,12 @@ In `_parse_experience` (lines 48-57), `if contains_keywords(line, ROLE_KEYWORDS)
 
 Existing issue:
 New.
+
+Status:
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Re-ordered parsing checks in `src/parsers/experience_parser.py` so that bullet checks (`•`, `-`, `*`, `‣`, `●`) take precedence over role keywords and durations. Bullets are never misclassified as roles.
+- **Relevant test:** `tests/parsers/test_experience_parser.py` (`test_duration_inside_bullet_does_not_split_experience`, `test_wrapped_description_with_duration_does_not_split_experience`)
 
 Recommended direction:
 Check for bullet prefixes first (`line.startswith(("•", "-", "*"))`) and immediately append to `description` before running any role keyword checks.
@@ -1510,6 +1533,12 @@ No handling for "Present" in `_normalize_duration()`, and strict `None` rejectio
 Existing issue:
 New (critical calculation consequence of R-006).
 
+Status:
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** In `src/normalizers/experience_normalizer.py`, added active employment resolution mapping `"Present"` to `datetime.now()`, populating current month name and year so active employment is accurately counted in `calculate_total_experience()`.
+- **Relevant test:** `tests/normalizers/test_experience_normalizer.py` (`test_normalize_duration_present_with_abbreviated_month`, `test_normalize_duration_present_with_full_month`)
+
 Recommended direction:
 Map "Present" to current date `(datetime.now().year, datetime.now().strftime("%B"))` during normalization.
 
@@ -1540,6 +1569,12 @@ Hardcoded regex in `experience_normalizer.py`:
 
 Existing issue:
 New.
+
+Status:
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Added `month_aliases` and expanded `month_pattern` in `src/normalizers/experience_normalizer.py` to match all 3-letter month abbreviations and normalize them into canonical month names (`January`..`December`).
+- **Relevant test:** `tests/normalizers/test_experience_normalizer.py` (`test_normalize_duration_month_abbreviations`, `test_normalize_duration_abbreviated_month_range`)
 
 Recommended direction:
 Expand regex to match abbreviations and map them to canonical month names using `MONTH_ALIASES`.
@@ -1756,7 +1791,10 @@ Migrate `experience_parser` to receive isolated section text from `section_detec
 
 - **ID:** R-035
 - **Title:** Project parser mutates title block into description when bullet characters do not strictly match standard bullets
-- **Status:** OPEN
+- **Status:** FIXED
+- **Fixed in:** Phase 4.5 Day 5
+- **Validation:** Added Unicode bullet glyphs (`‣`, `●`, `•`, `-`, `*`) to bullet prefix tuples in `src/parsers/project_parser.py` (both `_extract_projects` and `_parse_projects`). Bullets are recognized accurately and appended to project descriptions without mutating or dropping project titles.
+- **Relevant test:** `tests/parsers/test_project_parser.py` (`test_unicode_bullets_are_preserved_as_project_descriptions`)
 - **Severity:** P0
 - **Category:** Data Corruption / Information Loss
 - **Observed in:** `R01_Fresher_CS.pdf`, `R05_Projects_Heavy_FullStack.pdf`, `R09_Multiple_Skills_Sections.pdf`, `R10_Alternate_Headings.pdf`, `R12_No_Experience_BioMed.pdf`
@@ -2020,11 +2058,11 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 | **R-002** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 4/5 | LinkedIn URL extracted from PDF links is never surfaced |
 | **R-003** | P1 | Incorrect Ext | **OPEN** | — | Name parser returns first non-empty line unconditionally |
 | **R-004** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Wrapped experience bullets split into orphan line |
-| **R-005** | P1 | Incorrect Ext | **OPEN** | — | Experience parser previous-line company assumption |
-| **R-006** | P1 | Date Handling | **OPEN** | — | Duration pattern misses `Month YYYY - Month YYYY` / "Present" |
+| **R-005** | P1 | Incorrect Ext | **FIXED** | Phase 4.5 Day 5 | Experience parser previous-line company assumption |
+| **R-006** | P1 | Date Handling | **FIXED** | Phase 4.5 Day 5 | Duration pattern misses `Month YYYY - Month YYYY` / "Present" |
 | **R-007** | P1 | Normalization | **OPEN** | — | Project title retains `\| GitHub` / `\| LIVE` suffix |
 | **R-008** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Experience bullet continuation line dropped |
-| **R-009** | P0 | Boundary Det | **PARTIAL** | Phase 4.5 Day 1 | Multi-page PDF phantom projects (`CSS` persists) |
+| **R-009** | P0 | Boundary Det | **FIXED** | Phase 4.5 Day 5 | Multi-page PDF phantom projects (`CSS` resolved) |
 | **R-010** | P2 | Section Det | **FIXED** | Phase 4.5 Day 3 | Skills parser only extracts first skills section |
 | **R-011** | P2 | Section Det | **OPEN** | — | Education header misses variants (`ACADEMIC QUALIFICATIONS`) |
 | **R-012** | P2 | Section Det | **OPEN** | — | Experience header misses variants (`WORK HISTORY`) |
@@ -2038,19 +2076,19 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 | **R-020** | P4 | Noise | **OPEN** | — | Duplicate name artifact in text layer |
 | **R-021** | P2 | Normalization | **OPEN** | — | Degree aliases missing secondary / senior secondary / plurals |
 | **R-022** | P1 | Tokenization | **OPEN** | — | Skills parser drops skills separated by conjunction `" and "` |
-| **R-023** | P0 | Boundary Det | **OPEN** | — | Standalone duration lines in projects become phantom titles |
-| **R-024** | P0 | Section Det | **OPEN** | — | "Technologies" header not in `SECTION_HEADERS` |
-| **R-025** | P0 | Entity Assoc | **OPEN** | — | Experience parser mistakes bullet with role keyword for role |
+| **R-023** | P0 | Boundary Det | **FIXED** | Phase 4.5 Day 5 | Standalone duration lines in projects become phantom titles |
+| **R-024** | P0 | Section Det | **FIXED** | Phase 4.5 Day 5 | "Technologies" header not in `SECTION_HEADERS` |
+| **R-025** | P0 | Entity Assoc | **FIXED** | Phase 4.5 Day 5 | Experience parser mistakes bullet with role keyword for role |
 | **R-026** | P1 | Entity Assoc | **OPEN** | — | Education parser misses degree when combined on same line |
 | **R-027** | P2 | Normalization | **OPEN** | — | Education normalizer fails on fractional CGPA (`8.67/10.0`) |
 | **R-028** | P2 | Normalization | **OPEN** | — | Education score lines prefixed with bullet fail type check |
 | **R-029** | P1 | Link Assoc | **OPEN** | — | Project parser only associates hyperlinks on title bbox |
-| **R-030** | P1 | Calculation | **OPEN** | — | Experience normalizer "Present" yields 0 months experience |
-| **R-031** | P1 | Normalization | **OPEN** | — | Regex only matches full month names, fails on abbreviations |
+| **R-030** | P1 | Calculation | **FIXED** | Phase 4.5 Day 5 | Experience normalizer "Present" yields 0 months experience |
+| **R-031** | P1 | Normalization | **FIXED** | Phase 4.5 Day 5 | Regex only matches full month names, fails on abbreviations |
 | **R-032** | P2 | Side Effect | **OPEN** | — | In-place modification of `text_blocks` duplicates descriptions |
 | **R-033** | P2 | Section Det | **PARTIAL** | Phase 4.5 Day 3 | Non-standard sections (`INTERESTS`, `ABOUT ME`, `SUMMARY`) |
 | **R-034** | P0 | Architecture | **OPEN** | — | Multi-page repeated canonical experience sections dropped |
-| **R-035** | P0 | Info Loss | **OPEN** | — | Project parser mutates title block into description on bullets |
+| **R-035** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 5 | Project parser mutates title block into description on bullets |
 | **R-036** | P1 | Generalization| **OPEN** | — | `DEGREE_KEYWORDS` missing doctoral degrees (`PhD`, `Doctor`) |
 | **R-037** | P1 | Section Det | **PARTIAL** | Phase 4.5 Day 4 | Section detector misses `WORK HISTORY`, `ACADEMIC QUALIFICATIONS` |
 | **R-038** | P1 | Architecture | **OPEN** | — | Multi-page repeated education sections dropped |
@@ -2061,9 +2099,9 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 
 ### Status Ledger Summary
 - **Total Resume Issues Documented:** 40 (R-001 through R-040)
-- **FIXED:** 6 (R-001, R-002, R-004, R-008, R-010, R-013)
-- **PARTIALLY FIXED:** 3 (R-009, R-033, R-037)
-- **OPEN:** 31
+- **FIXED:** 15 (R-001, R-002, R-004, R-005, R-006, R-008, R-009, R-010, R-013, R-023, R-024, R-025, R-030, R-031, R-035)
+- **PARTIALLY FIXED:** 2 (R-033, R-037)
+- **OPEN:** 23
 - **MIGRATED TO JD DOMAIN:** 2 (R-041 -> JD-002, R-042 -> JD-017)
 - **REGRESSIONS:** 0
 

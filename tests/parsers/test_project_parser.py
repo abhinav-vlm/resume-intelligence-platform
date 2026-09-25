@@ -507,3 +507,364 @@ def test_real_resume_projects():
         assert project["project"] is not None
         assert isinstance(project["metadata"], list)
         assert isinstance(project["description"], list)
+def test_unicode_bullets_are_preserved_as_project_descriptions():
+
+    text = """
+    PROJECTS:
+
+    Project Alpha
+    ‣ Built a backend service using FastAPI.
+    ● Added authentication and authorization.
+
+    TECHNICAL SKILLS:
+    """
+
+    result = process_projects(
+        make_text_blocks(text),
+        [],
+    )
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["description"] == [
+        "‣ Built a backend service using FastAPI.",
+        "● Added authentication and authorization.",
+    ]
+
+def test_duration_line_is_not_project_title():
+
+    text = """
+    PROJECTS:
+
+    2022 - 2024
+
+    Resume Intelligence Platform
+    • Built a production-grade resume parser.
+
+    TECHNICAL SKILLS:
+    """
+
+    result = process_projects(
+        make_text_blocks(text),
+        [],
+    )
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == (
+        "Resume Intelligence Platform"
+    )
+
+def test_date_range_is_not_project_title():
+
+    text = """
+    PROJECTS:
+
+    Jan 2022 - Mar 2024
+
+    Risk Intelligence Engine
+    • Built a real-time ML decision system.
+
+    TECHNICAL SKILLS:
+    """
+
+    result = process_projects(
+        make_text_blocks(text),
+        [],
+    )
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == (
+        "Risk Intelligence Engine"
+    )
+
+def test_projects_stop_at_technologies_section():
+
+    text = """
+    PROJECTS:
+
+    Project Alpha
+    • Built an ML application.
+
+    TECHNOLOGIES
+
+    Python
+    FastAPI
+    Docker
+    """
+
+    result = process_projects(
+        make_text_blocks(text),
+        [],
+    )
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == "Project Alpha"
+
+    assert result[0]["description"] == [
+        "• Built an ML application.",
+    ]
+
+def test_projects_stop_at_technologies_and_tools_section():
+
+    text = """
+    PROJECTS:
+
+    Project Alpha
+    • Built an ML application.
+
+    TECHNOLOGIES & TOOLS
+
+    Python
+    Docker
+    AWS
+    """
+
+    result = process_projects(
+        make_text_blocks(text),
+        [],
+    )
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == "Project Alpha"
+
+def test_skill_list_is_not_detected_as_project_title():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Resume Intelligence Platform",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built a production-grade resume parser.",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "HTML, CSS",
+            "bbox": (40, 150, 200, 165),
+            "page": 0,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 180, 200, 190),
+            "page": 0,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == "Resume Intelligence Platform"
+
+    assert result[0]["description"] == [
+        "• Built a production-grade resume parser."
+    ]
+
+def test_page_boundary_skill_list_does_not_create_phantom_project():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Resume Intelligence Platform",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built a production-grade resume parser.",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "HTML, CSS",
+            "bbox": (40, 50, 200, 65),
+            "page": 1,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 100, 200, 110),
+            "page": 1,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == "Resume Intelligence Platform"
+
+    assert result[0]["description"] == [
+        "• Built a production-grade resume parser."
+    ]
+
+def test_css_alone_does_not_become_phantom_project():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Resume Intelligence Platform",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built a production-grade resume parser.",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "CSS",
+            "bbox": (40, 50, 100, 65),
+            "page": 1,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 100, 200, 110),
+            "page": 1,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["project"] == "Resume Intelligence Platform"
+
+def test_react_node_skill_list_is_not_appended_to_project():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Project Alpha",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built a web application.",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "React, Node.js",
+            "bbox": (40, 150, 200, 165),
+            "page": 0,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 180, 200, 190),
+            "page": 0,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["description"] == [
+        "• Built a web application.",
+    ]
+
+def test_comma_containing_description_is_preserved():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Project Alpha",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built APIs using Python, FastAPI, and PostgreSQL.",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 180, 200, 190),
+            "page": 0,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["description"] == [
+        "• Built APIs using Python, FastAPI, and PostgreSQL.",
+    ]
+
+def test_wrapped_description_with_comma_is_preserved():
+
+    text_blocks = [
+        {
+            "text": "PROJECTS:",
+            "bbox": (20, 50, 200, 60),
+            "page": 0,
+        },
+        {
+            "text": "Project Alpha",
+            "bbox": (40, 100, 300, 115),
+            "page": 0,
+        },
+        {
+            "text": "• Built backend services using Python",
+            "bbox": (40, 120, 400, 135),
+            "page": 0,
+        },
+        {
+            "text": "and FastAPI, PostgreSQL integration",
+            "bbox": (40, 140, 400, 155),
+            "page": 0,
+        },
+        {
+            "text": "TECHNICAL SKILLS:",
+            "bbox": (20, 180, 200, 190),
+            "page": 0,
+        },
+    ]
+
+    result = process_projects(text_blocks, [])
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["description"] == [
+        "• Built backend services using Python "
+        "and FastAPI, PostgreSQL integration"
+    ]
+

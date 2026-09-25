@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from src.parsers.section_detector import detect_sections
 from src.parsers.experience_parser import (
     process_experience,
@@ -147,3 +146,94 @@ def test_isolated_experience_extraction_shape():
 
     assert blocks is not None
     assert len(blocks) == 1
+def test_engineering_does_not_match_engineer_role_keyword():
+
+    text = """
+    Software Engineer
+    Engineering Systems Pvt Ltd
+    Jan 2024 - Present
+
+    • Built internal engineering platforms.
+    """
+
+    result = process_experience(text)
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["role"] == "Software Engineer"
+    assert result[0]["company"] == "Engineering Systems Pvt Ltd"
+
+def test_duration_inside_bullet_does_not_split_experience():
+
+    text = """
+    Software Engineer
+    ABC Technologies
+    Jan 2024 - Present
+
+    • Improved the legacy system used between 2022 - 2024.
+    • Built REST APIs using FastAPI.
+    """
+
+    result = process_experience(text)
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["company"] == "ABC Technologies"
+    assert result[0]["role"] == "Software Engineer"
+    assert result[0]["duration"] == "Jan 2024 - Present"
+
+    assert result[0]["description"] == [
+        "• Improved the legacy system used between 2022 - 2024.",
+        "• Built REST APIs using FastAPI.",
+    ]
+
+def test_multiple_experiences_preserve_company_and_role():
+
+    text = """
+    Software Engineer
+    ABC Technologies
+    Jan 2024 - Present
+
+    • Built REST APIs.
+
+    Data Analyst
+    XYZ Corporation
+    Jan 2021 - Dec 2023
+
+    • Developed analytics dashboards.
+    """
+
+    result = process_experience(text)
+
+    assert result is not None
+    assert len(result) == 2
+
+    assert result[0]["role"] == "Software Engineer"
+    assert result[0]["company"] == "ABC Technologies"
+    assert result[0]["duration"] == "Jan 2024 - Present"
+
+    assert result[1]["role"] == "Data Analyst"
+    assert result[1]["company"] == "XYZ Corporation"
+    assert result[1]["duration"] == "Jan 2021 - Dec 2023"
+
+def test_wrapped_description_with_duration_does_not_split_experience():
+
+    text = """
+    Software Engineer
+    ABC Technologies
+    Jan 2024 - Present
+
+    • Improved systems used from
+      2022 - 2024 across multiple teams.
+    """
+
+    result = process_experience(text)
+
+    assert result is not None
+    assert len(result) == 1
+
+    assert result[0]["description"] == [
+        "• Improved systems used from 2022 - 2024 across multiple teams."
+    ]

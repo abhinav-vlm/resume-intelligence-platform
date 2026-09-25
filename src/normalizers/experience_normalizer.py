@@ -1,4 +1,6 @@
+from datetime import datetime
 import re
+
 from src.utils.intervals import merge_intervals
 from src.configs.duration_configs import MONTHS
 
@@ -61,36 +63,110 @@ def _calculate_months(intervals: list[tuple]) -> int:
         months += month + year*12 +1
     return months
 
-def _normalize_duration(duration:str|None)->tuple[str|None,str|None,int|None,int|None]:
+def _normalize_duration(
+    duration: str | None,
+) -> tuple[str | None, str | None, int | None, int | None]:
+
     if not duration:
         return None, None, None, None
+
     duration = duration.strip()
-    months = re.findall(r"January|February|March|April|May|June|July|August|September|October|November|December",
-      duration,
-      re.IGNORECASE
+
+    month_aliases = {
+        "JAN": "January",
+        "FEB": "February",
+        "MAR": "March",
+        "APR": "April",
+        "MAY": "May",
+        "JUN": "June",
+        "JUL": "July",
+        "AUG": "August",
+        "SEP": "September",
+        "OCT": "October",
+        "NOV": "November",
+        "DEC": "December",
+    }
+
+    month_pattern = (
+        r"January|February|March|April|May|June|July|August|"
+        r"September|October|November|December|"
+        r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
     )
-    years = re.findall(r'\d{4}',duration)
-    years = [int(year) for year in years]
-    month_count = len(months)
-    year_count = len(years)
-    if month_count == 0:
-        months = (None,None)
-    elif month_count == 1:
-        months = (months[0],None)
-    else:
-        months = (months[0],months[1])
 
-    if year_count == 0:
-        years = (None,None)     
-    elif year_count == 1 and month_count == 2:
-        return (months[0],months[1],years[0],years[0])
-    elif year_count == 1:
-        years = (years[0],None)
-    else:
-        years = (years[0],years[1])
+    month_matches = re.findall(
+        month_pattern,
+        duration,
+        re.IGNORECASE,
+    )
 
-    final_duration = (months[0],months[1],years[0],years[1])
-    return final_duration
+    months = [
+        month_aliases.get(
+            month[:3].upper(),
+            month.capitalize(),
+        )
+        for month in month_matches
+    ]
+
+    years = [
+        int(year)
+        for year in re.findall(r"\d{4}", duration)
+    ]
+
+    has_present = bool(
+        re.search(r"\bpresent\b", duration, re.IGNORECASE)
+    )
+
+    # ------------------------------------------------------------
+    # Active employment: end date is the current month/year.
+    # ------------------------------------------------------------
+    if has_present:
+        now = datetime.now()
+
+        if len(months) >= 1 and len(years) >= 1:
+            return (
+                months[0],
+                now.strftime("%B"),
+                years[0],
+                now.year,
+            )
+
+        if len(years) == 1:
+            return (
+                None,
+                now.strftime("%B"),
+                years[0],
+                now.year,
+            )
+
+    # ------------------------------------------------------------
+    # Existing normalization behavior
+    # ------------------------------------------------------------
+    if len(months) == 0:
+        start_month = end_month = None
+    elif len(months) == 1:
+        start_month = months[0]
+        end_month = None
+    else:
+        start_month = months[0]
+        end_month = months[1]
+
+    if len(years) == 0:
+        start_year = end_year = None
+    elif len(years) == 1 and len(months) == 2:
+        start_year = end_year = years[0]
+    elif len(years) == 1:
+        start_year = years[0]
+        end_year = None
+    else:
+        start_year = years[0]
+        end_year = years[1]
+
+    return (
+        start_month,
+        end_month,
+        start_year,
+        end_year,
+    )
 
 def _normalize_employment_type(role: str) -> str | None:
     if not role:
