@@ -11,4 +11,6 @@ ROLE_KEYWORDS = [
     "ARCHITECT",
     "SPECIALIST",
     "TECHNICIAN",
+    "DIRECTOR",
+    "VP",
 ]

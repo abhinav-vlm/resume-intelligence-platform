@@ -4,6 +4,7 @@ import re
 from src.utils.intervals import merge_intervals
 from src.configs.duration_configs import MONTHS
 
+
 def normalize_experience(experience: list[dict]) -> list[dict]:
     normalized_experience = []
 
@@ -32,6 +33,7 @@ def normalize_experience(experience: list[dict]) -> list[dict]:
 
     return normalized_experience
 
+
 def calculate_total_experience(experience: list[dict]) -> int:
     intervals = []
 
@@ -46,7 +48,7 @@ def calculate_total_experience(experience: list[dict]) -> int:
 
         interval = (
             (start_year, start_month),
-            (end_year, end_month)
+            (end_year, end_month),
         )
 
         intervals.append(interval)
@@ -54,14 +56,19 @@ def calculate_total_experience(experience: list[dict]) -> int:
     merged_intervals = merge_intervals(intervals)
 
     return _calculate_months(merged_intervals)
-    
+
+
 def _calculate_months(intervals: list[tuple]) -> int:
     months = 0
+
     for interval in intervals:
         month = interval[1][1] - interval[0][1]
         year = interval[1][0] - interval[0][0]
-        months += month + year*12 +1
+
+        months += month + year * 12 + 1
+
     return months
+
 
 def _normalize_duration(
     duration: str | None,
@@ -113,50 +120,60 @@ def _normalize_duration(
     ]
 
     has_present = bool(
-        re.search(r"\bpresent\b", duration, re.IGNORECASE)
+        re.search(
+            r"\bpresent\b",
+            duration,
+            re.IGNORECASE,
+        )
     )
 
     # ------------------------------------------------------------
-    # Active employment: end date is the current month/year.
+    # Active employment
+    #
+    # "Present" means the employment is ongoing.
+    # Therefore the end date is the current month/year.
     # ------------------------------------------------------------
     if has_present:
         now = datetime.now()
 
-        if len(months) >= 1 and len(years) >= 1:
-            return (
-                months[0],
-                now.strftime("%B"),
-                years[0],
-                now.year,
-            )
+        start_month = months[0] if months else None
+        start_year = years[0] if years else None
 
-        if len(years) == 1:
-            return (
-                None,
-                now.strftime("%B"),
-                years[0],
-                now.year,
-            )
+        return (
+            start_month,
+            now.strftime("%B"),
+            start_year,
+            now.year,
+        )
 
     # ------------------------------------------------------------
-    # Existing normalization behavior
+    # Historical experience
     # ------------------------------------------------------------
+
     if len(months) == 0:
-        start_month = end_month = None
+        start_month = None
+        end_month = None
+
     elif len(months) == 1:
         start_month = months[0]
         end_month = None
+
     else:
         start_month = months[0]
         end_month = months[1]
 
     if len(years) == 0:
-        start_year = end_year = None
+        start_year = None
+        end_year = None
+
     elif len(years) == 1 and len(months) == 2:
-        start_year = end_year = years[0]
+        start_year = years[0]
+        end_year = years[0]
+
     elif len(years) == 1:
         start_year = years[0]
         end_year = None
+
     else:
         start_year = years[0]
         end_year = years[1]
@@ -191,6 +208,7 @@ def _normalize_employment_type(role: str) -> str | None:
 
     return None
 
+
 def _normalize_position(role: str) -> str | None:
     if not role:
         return None
@@ -199,7 +217,7 @@ def _normalize_position(role: str) -> str | None:
         r"\b(remote|intern(ship)?|contract(ual)?|part[-\s]?time|full[-\s]?time|freelance|temporary|apprentice(ship)?|trainee)\b",
         "",
         role,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
 
     position = re.sub(r"\([^)]*\)", "", position)

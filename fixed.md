@@ -250,14 +250,156 @@ Running `.venv\Scripts\pytest -q`:
 
 ---
 
-## 5. Next Planned Actions (Phase 4.5 Day 6: Resume Multi-Page Continuity & Entity Parsing)
+## 5. Phase 4.5 Day 5 Verification & Hardening Audit (Audit Date: 2026-09-28)
 
-1. **Phase 4.5 Day 5 Sign-off:**
-   - Completed Blocks 1–5: R-023, R-024, R-035, R-009, R-025, R-005, R-006, R-030, R-031 resolved.
-   - Verified zero regressions across platform. Test baseline locked at **399 passing tests** (up from 368 baseline, +31 new tests).
-2. **Phase 4.5 Day 6 Focus (2h Total):**
-   - **Block 1 (R-034, R-038):** Multi-page experience and education continuity validation on `R04_MultiPage_Executive.pdf`.
-   - **Block 2 (R-022, R-007):** Skill conjunction splitting (`" and "`) in `skills_parser.py`; project title display suffix stripping (`| GitHub`, `| LIVE`).
-   - **Block 3 (R-026, R-036):** Composite education line splitting (institution + degree on same line); doctoral degrees (`PhD`, `Doctor`) in `DEGREE_KEYWORDS`.
-   - **Block 4:** Full 12-resume corpus verification (R01 through R12, Harshit, Aditya, Abhinav).
-   - **Block 5:** Daily checkpoint, regression run, and documentation sync.
+**Audit Date:** 2026-09-28  
+**Commits Audited:** `26d1fde` (*fix: experience normalization and integration*)  
+**Scope:** Project boundaries, experience parsing, tenure/date normalization, and regression locking across the resume pipeline.
+
+### 5.1 Issues Addressed & Verified
+
+| Issue ID | Severity | Category | Problem Summary | Verified Fix Implementation |
+|---|---|---|---|---|
+| **R-023** | **P0** | Boundary Det | Standalone duration lines (`2022 - 2024`, `Jan 2022 - Mar 2024`) misclassified as project titles | Added `is_duration(line)` guard to `_is_project_title()` in [`src/utils/text_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/text_utils.py) and hardened `DURATION_PATTERNS`. |
+| **R-024** | **P0** | Section Det | `TECHNOLOGIES` / `TECHNOLOGIES & TOOLS` headers not registered, causing section bleed into projects | Added `TECHNOLOGIES` and `TECHNOLOGIES & TOOLS` to `SECTION_HEADERS` and mapped to `skills` in `SECTION_ALIASES` in [`src/configs/header_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/header_configs.py). |
+| **R-025** | **P0** | Entity Assoc | Bullets containing role keywords (e.g. `• Enhanced model accuracy... engineering`) hijacked as job roles | Re-ordered parsing checks in [`src/parsers/experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py) so bullet prefixes strictly take precedence over role keyword and duration checks. |
+| **R-035** | **P0** | Info Loss | Non-standard Unicode project bullet glyphs (`‣`, `●`) mutated title block into description | Added `‣` and `●` to bullet prefix tuples in [`src/parsers/project_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py) and [`src/parsers/experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py). |
+| **R-009** | **P0** | Boundary Det | Residual phantom project titles (`CSS`, `HTML, CSS`, `React, Node.js`) generated across page breaks | Implemented `_is_likely_skill_list()` in [`src/utils/text_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/text_utils.py) and wired into [`src/parsers/project_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py) to discard orphan tech keywords and comma-separated skill lists from becoming project titles or corrupting descriptions, while preserving wrapped lowercase continuations. |
+| **R-005** | **P1** | Incorrect Ext | Substring matching on role keywords (e.g., `Engineering Systems Pvt Ltd`) falsely matched role keyword `Engineer`; inaccurate experience boundary splits | Upgraded `contains_keywords()` in [`src/utils/text_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/text_utils.py) to use `\b` regex word boundaries; segmented experience entries cleanly upon encountering a new role line following a duration line in [`src/parsers/experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py). |
+| **R-006** | **P1** | Date Handling | Duration regex missed `Month YYYY - Month YYYY` and `Month YYYY - PRESENT`; active tenure unparsed | Expanded `DURATION_PATTERNS` in [`src/configs/text_utils_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/text_utils_configs.py) with multi-month and `PRESENT` patterns; enabled active tenure resolution in [`src/normalizers/experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py). |
+| **R-030** | **P1** | Calculation | Ongoing employment with "Present" end date produced `end_year: None`, resulting in 0 months experience | Mapped `"Present"` case-insensitively to `datetime.now()` (current month name and year) in [`src/normalizers/experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py), ensuring active employment computes accurate, positive tenure in `calculate_total_experience()`. |
+| **R-031** | **P1** | Normalization | Duration regex only matched full month names, failing on standard 3-letter abbreviations (`Jan`, `Feb`, etc.) | Added `month_aliases` mapping all 12 three-letter month abbreviations to canonical month names and expanded `month_pattern` in [`src/normalizers/experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py). |
+
+---
+
+### 5.2 Source Files Changed
+
+1. **[`src/configs/header_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/header_configs.py)**
+   - Added `"TECHNOLOGIES"` and `"TECHNOLOGIES & TOOLS"` to `SECTION_HEADERS`.
+   - Added `"technologies": "skills"` and `"technologies & tools": "skills"` to `SECTION_ALIASES`.
+
+2. **[`src/configs/text_utils_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/text_utils_configs.py)**
+   - Expanded `DURATION_PATTERNS` to support full/abbreviated month ranges (`Jan 2022 - Mar 2024`) and present durations (`Jan 2024 - Present`).
+
+3. **[`src/utils/text_utils.py`](file:///d:/Projects/resume-intelligence-platform/src/utils/text_utils.py)**
+   - Hardened `is_duration(line)` with `re.fullmatch` across `DURATION_PATTERNS`.
+   - Hardened `contains_keywords(line, keywords)` using `\b` word boundary regex matching to eliminate substring collisions.
+   - Added `is_duration(line)` and comma guard checks to `_is_project_title(line)`.
+   - Added `_is_likely_skill_list(line)` heuristic to detect comma-separated skill candidate lists.
+
+4. **[`src/parsers/project_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py)**
+   - Added Unicode bullet glyphs (`‣`, `●`) alongside `•`, `-`, `*` in `_extract_projects` and `_parse_projects`.
+   - Added lowercase wrapped description continuation joining.
+   - Integrated `_is_likely_skill_list()` filtering to prevent technology token lines from forming phantom projects.
+   - Added page-boundary lookahead protection preventing orphan keywords (such as `'CSS'`) from becoming project titles.
+
+5. **[`src/parsers/experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py)**
+   - Defined `BULLET_PREFIXES = ("•", "-", "*", "‣", "●")`.
+   - Re-ordered parsing conditions so bullet checks evaluate before role and duration checks, preventing bullet hijacking.
+   - Segmented multi-role experience entries upon detecting a role line following a duration line.
+   - Enabled multi-line wrapped bullet continuation handling.
+
+6. **[`src/normalizers/experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py)**
+   - Implemented dynamic `"Present"` date resolution mapping active roles to `datetime.now()` month and year.
+   - Added `month_aliases` for all 12 abbreviated month tokens (`Jan` through `Dec`) normalizing to canonical month names.
+   - Maintained interval calculations via `merge_intervals` and `calculate_total_experience`.
+
+---
+
+### 5.3 Tests Added and Updated (+31 Tests)
+
+| Test File | Tests Added | Description of Coverage |
+|---|---|---|
+| **[`tests/parsers/test_project_parser.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_project_parser.py)** | **+11 tests** | • Unicode bullets (`‣`, `●`) preservation as project descriptions<br>• Standalone duration (`2022 - 2024`) rejected as project title<br>• Month date range (`Jan 2022 - Mar 2024`) rejected as project title<br>• Section boundaries stop at `TECHNOLOGIES` and `TECHNOLOGIES & TOOLS`<br>• `_is_likely_skill_list` rejects inline and cross-page skill lists (`HTML, CSS`, `React, Node.js`)<br>• Single-token page-boundary `'CSS'` prevented from forming phantom project<br>• Comma-containing project descriptions and lowercase wrapped lines preserved |
+| **[`tests/parsers/test_experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_experience_parser.py)** | **+4 tests** | • `Engineering Systems Pvt Ltd` company name does not collide with `Engineer` role keyword (`\b` word boundary)<br>• Duration inside bullet point does not split experience entry<br>• Multiple experiences preserve distinct company, role, and duration<br>• Wrapped bullet descriptions containing date strings do not split experience |
+| **[`tests/normalizers/test_experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/tests/normalizers/test_experience_normalizer.py)** | **+16 tests** | • 12 parametrized tests validating all 3-letter month abbreviations (`Jan` through `Dec`) to canonical names<br>• Abbreviated month range (`Jan 2024 - Dec 2025`) normalization<br>• Present duration with abbreviated month (`Jan 2024 - Present`) -> current month/year<br>• Present duration with full month (`January 2024 - Present`) -> current month/year<br>• Year-only present duration (`2024 - Present`) -> current month/year |
+
+---
+
+### 5.4 Test Suite Execution & Regression Results
+
+- **Regression Result:** Zero regressions across the workspace. All analyzer, matcher, normalizer, parser, and service suites passed cleanly.
+- **Full Pytest Suite Count:** **401 passed in 0.90s** (374 parser/normalizer/analyzer/matcher/utils tests + 27 service/PDF integration tests).
+- **Environment & Platform Note:** Following the disabling/unblocking of Windows Smart App Control and clearing corrupted pip uninstallation artifacts (`~ymupdf`), PyMuPDF loads cleanly. All 401 tests across the entire platform execute and pass 100%.
+
+---
+
+### 5.5 Remaining Partial & Open Issues
+
+- **Resume Issues Open (23 issues):**
+  - R-003 (P1: Name parser first non-empty line unconditional)
+  - R-007 (P1: Project title retains `| GitHub` / `| LIVE` suffix — planned for Day 6)
+  - R-011 (P2: Education header misses variants `ACADEMIC QUALIFICATIONS`)
+  - R-012 (P2: Experience header misses `WORK HISTORY`, `INTERNSHIP`)
+  - R-014 (P1: `ACHIEVEMENTS` section discarded)
+  - R-015 (P1: `CERTIFICATIONS` and `PUBLICATIONS` unparsed)
+  - R-016 (P2: Summary / Profile / Objective unextracted)
+  - R-017 (P2: Skills normalizer splits wrapped multi-line skill values)
+  - R-018 (P3: Contact info glyphs/icons leak into text)
+  - R-019 (P2: `total_experience_months` inclusive +1 counting semantics)
+  - R-020 (P4: Duplicate name artifact in text layer)
+  - R-021 (P2: Degree aliases missing secondary/senior secondary)
+  - R-022 (P1: Skills parser drops skills separated by `" and "` — planned for Day 6)
+  - R-026 (P1: Education parser misses degree when combined on same line — planned for Day 6)
+  - R-027 (P2: Education normalizer fails on fractional CGPA `8.67/10.0`)
+  - R-028 (P2: Education score lines prefixed with bullet fail type check)
+  - R-029 (P1: Project parser only associates hyperlinks on title bbox)
+  - R-032 (P2: In-place modification of `text_blocks` duplicates descriptions)
+  - R-034 (P0: Multi-page repeated canonical experience sections dropped — planned for Day 6)
+  - R-036 (P1: `DEGREE_KEYWORDS` missing doctoral degrees `PhD`, `Doctor` — planned for Day 6)
+  - R-038 (P1: Multi-page repeated education sections dropped — planned for Day 6)
+  - R-039 (P2: Completeness analyzer enforces `projects` as required for all)
+  - R-040 (P2: Institution detection misses premier national institutes `IISER`)
+
+- **Resume Issues Partially Fixed (2 issues):**
+  - R-033 (P2: Non-standard sections `INTERESTS`, `ABOUT ME`, `SUMMARY` added to `SECTION_HEADERS`)
+  - R-037 (P1: Alternate headers `WORK HISTORY`, `ACADEMIC QUALIFICATIONS`, `AREAS OF EXPERTISE` added to `SECTION_HEADERS` & `SECTION_ALIASES`)
+
+- **JD Issues (18 issues):**
+  - JD-001 through JD-018: All 18 issues remain cataloged as OPEN, preserved intact and scheduled for implementation during Phase 4.5 Days 7–10.
+
+---
+
+## 6. Phase 4.5 Day 6 Execution Summary (Checkpoint at Block 5)
+
+1. **Phase 4.5 Day 6 Completed Blocks:**
+   - **Block 1 (Multi-page continuity):** Verified `R04_MultiPage_Executive.pdf` and added 4 service-level integration tests in [`tests/services/test_resume_service_multipage.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_resume_service_multipage.py).
+   - **Block 2 (Section detector aliases):** Verified `TECHNOLOGIES` and `TECHNOLOGIES & TOOLS` in [`tests/parsers/test_section_detector.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_section_detector.py) (+2 tests).
+   - **Block 3 (Tenure normalization):** Verified `Present` dynamic month/year resolution in [`tests/normalizers/test_experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/tests/normalizers/test_experience_normalizer.py).
+   - **Block 4 (Skill conjunctions):** Conjunction candidate splitting (`\s+and\s+`) added to `skills_parser.py` and asserted in [`tests/parsers/test_skills_parser.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_skills_parser.py) (+1 test).
+   - **Block 5 (READ-ONLY AUDIT):** Completed structured audit of all 9 investigation areas; verified test baseline of **408 passed, 0 failed**.
+
+---
+
+## 7. Phase 4.5 Day 6 Block 5: Audit Findings & Gap Ledger (Audit Date: 2026-09-28)
+
+**Audit Target:** Phase 4.5 Day 6 Working Tree (READ-ONLY Audit)  
+**Baseline Test Count:** **408 passed, 0 failed**  
+**Findings Summary:**
+
+### 7.1 Technical / Implementation Gaps (Identified & Cataloged)
+1. **R-043 (P0): Bullet glyph retention on un-colonized skill lines** ([`src/parsers/skills_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/skills_parser.py)): `extract_skill_candidates` does not strip leading bullet characters `("•", "-", "*", "‣", "●")` from un-colonized lines (`• Python, Java and C++`), leaving `"• Python"` which fails `match_known_skill()` fullmatch.
+2. **R-044 (P1): Conjunction splitting on legitimate multi-word skills** ([`src/parsers/skills_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/skills_parser.py)): `\s+and\s+` splits established compound skills like `Data Structures and Algorithms` into `Data Structures` and `Algorithms`.
+3. **R-045 (P1): Slash delimiter fragments acronym skills** ([`src/parsers/skills_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/skills_parser.py)): Delimiter `/` splits acronyms like `CI/CD` into `CI` and `CD`.
+4. **R-046 (P0): `calculate_total_experience` skips year-only and year-to-Present tenures** ([`src/normalizers/experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/experience_normalizer.py)): `if None in (start_month, end_month, start_year, end_year): continue` evaluates to `True` when months are `None` (`2020 - 2024`, `2024 - Present`), returning 0 months total experience.
+5. **R-005 (P1): Experience parser Company-first layout sensitivity** ([`src/parsers/experience_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/experience_parser.py)): In `Company \n Role \n Duration` layouts, `block[i-1]` assigns Role as Company, and the next company line is absorbed into the previous job's bullet description.
+6. **R-047 (P0): Education parser degree corruption when Degree precedes Institution** ([`src/parsers/education_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/education_parser.py)): `_extract_education` only splits on `INSTITUTION_KEYWORDS`. If Degree precedes Institution, subsequent degree overwrites previous entry and leaves subsequent entry with `degree: None`.
+7. **R-026 (P1): Education parser drops degree on composite lines** ([`src/parsers/education_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/education_parser.py)): In `_parse_education()`, `elif contains_keywords(line, DEGREE_KEYWORDS)` never executes when line also matches `INSTITUTION_KEYWORDS` (e.g. `B.Tech in CS, Indian Institute of Technology Delhi`).
+8. **R-007 (P1): Project title retains display link suffixes** ([`src/parsers/project_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/project_parser.py)): Titles like `Bloger - A Full Stack Blog App | GitHub` retain `| GitHub`.
+9. **R-017 (P2): Skill normalizer case-sensitive deduplication** ([`src/normalizers/skill_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/src/normalizers/skill_normalizer.py)): Unaliased skills with varying casing (`fastapi`, `FastAPI` or `Python`, `python`) are not deduplicated.
+10. **R-003 (P1): Name parser unconditional first non-empty line return** ([`src/parsers/name_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/name_parser.py)): First line returns unconditionally without skipping email, phone, or section headers.
+
+### 7.2 Configuration / Vocabulary Gaps
+1. **R-036 (P1): Missing doctoral degrees in `DEGREE_KEYWORDS`** ([`src/configs/education_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/education_configs.py)): Lacks `PHD`, `PH.D`, `DOCTOR`, `DOCTORATE`.
+2. **R-040 (P2): Missing premier institute acronyms in `INSTITUTION_KEYWORDS`** ([`src/configs/education_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/education_configs.py)): Lacks `IIT`, `NIT`, `BITS`, `IISER`, `IIM`.
+
+### 7.3 Test Gaps
+1. **`test_conjunction_separated_skills_are_split`** in [`tests/parsers/test_skills_parser.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_skills_parser.py): Only tests clean known skills without asserting bullet prefixes or multi-word compound phrases.
+2. **`test_present_experience_uses_current_end_date`** in [`tests/normalizers/test_experience_normalizer.py`](file:///d:/Projects/resume-intelligence-platform/tests/normalizers/test_experience_normalizer.py): Asserts dictionary fields but does not assert `calculate_total_experience(result)`.
+
+### 7.4 Non-Issues / Potential Concerns Validated
+1. **Delimiter splitting on pipe/comma** in `skills_parser.py`: Functions cleanly as intended.
+2. **Text preprocessing double newline collapse** in `text_parser.py`: Potential architectural concern, but not an active regression since all downstream parsers discard empty lines via `if line.strip()`.
+3. **Role-first experience layouts** (`Role \n Company \n Duration`): Works cleanly as designed.
+4. **Legitimate hyphens in project titles** (`E-Commerce Website`): Preserved by current title extractor.
+

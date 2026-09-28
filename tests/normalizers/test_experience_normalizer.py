@@ -490,3 +490,37 @@ def test_calculate_total_experience_empty():
     result = calculate_total_experience([])
 
     assert result == 0
+
+def test_present_experience_uses_current_end_date():
+    experience = [
+        {
+            "company": "Stripe",
+            "duration": "Jan 2022 - Present",
+            "role": "Director of Engineering",
+            "description": [],
+        }
+    ]
+
+    result = normalize_experience(experience)
+
+    now = datetime.now()
+
+    assert result[0]["start_year"] == 2022
+    assert result[0]["start_month"] == "January"
+    assert result[0]["end_month"] == now.strftime("%B")
+    assert result[0]["end_year"] == now.year
+
+def test_historical_experience_preserves_end_year():
+    experience = [
+        {
+            "company": "Goldman Sachs",
+            "duration": "Mar 2018 - Dec 2021",
+            "role": "VP of Engineering",
+            "description": [],
+        }
+    ]
+
+    result = normalize_experience(experience)
+
+    assert result[0]["start_year"] == 2018
+    assert result[0]["end_year"] == 2021

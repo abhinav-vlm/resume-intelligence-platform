@@ -331,3 +331,10 @@ def test_realistic_mixed_skill_formatting():
         "Deep Learning",
         "NLP",
     ]
+
+def test_conjunction_separated_skills_are_split():
+    result = extract_skills("HTML, CSS and React JS")
+
+    assert "HTML" in result["known"]
+    assert "CSS" in result["known"]
+    assert "React JS" in result["known"]

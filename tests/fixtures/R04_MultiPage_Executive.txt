@@ -1,0 +1,46 @@
+VIKRAM MALHOTRA
++1 555 234 5678
+vikram.malhotra@executivemail.com
+https://www.linkedin.com/in/vikram-malhotra-exec/
+
+SUMMARY
+Engineering Director with 10+ years of experience leading engineering teams and distributed systems.
+
+EXPERIENCE
+Director of Engineering
+Stripe
+Jan 2022 - Present
+• Led engineering organization of 45 engineers scaling core payments infrastructure.
+• Improved system throughput by 35 percent and reduced transaction latency.
+
+VP of Engineering
+Goldman Sachs
+Mar 2018 - Dec 2021
+• Directed architecture of high-frequency distributed trading platform handling  daily.
+• Managed 30 software engineers across cloud infrastructure and microservices modernization.
+
+EDUCATION
+Columbia University
+2016 – 2018
+Master of Science in Computer Science
+CGPA: 3.90
+
+Indian Institute of Technology, Delhi
+2012 – 2016
+Bachelor of Technology in Computer Science
+CGPA: 8.80
+
+EXPERIENCE
+Lead Software Engineer
+Bloomberg LP
+Jul 2016 - Feb 2018
+• Built real-time market data feed handlers in C++ processing millions of events per second.
+• Optimized low-latency message queues and distributed caching infrastructure.
+
+TECHNICAL SKILLS :
+• Programming Languages : Python, Java, C++, Go, SQL, TypeScript, Bash
+• Technologies : Kubernetes, Docker, AWS, GCP, Terraform, Kafka, Redis
+
+CERTIFICATIONS :
+• AWS Certified Solutions Architect - Professional
+• Certified Kubernetes Administrator (CKA)

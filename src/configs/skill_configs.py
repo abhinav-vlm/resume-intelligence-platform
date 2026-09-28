@@ -1,5 +1,7 @@
 KNOWN_SKILLS = {
     "Python",
+    "HTML",
+    "CSS",
     "C",
     "C++",
     "Java",

@@ -556,3 +556,43 @@ def test_new_section_aliases_are_normalized():
 
     assert sections[2]["name"] == "skills"
     assert sections[2]["original_name"] == "areas of expertise"
+
+def test_detect_technologies_as_skills():
+    text = """TECHNOLOGIES
+Python
+FastAPI
+Docker
+
+EXPERIENCE
+Software Engineer
+Google
+Jan 2024 - Present
+• Built backend services
+"""
+
+    result = detect_sections(text)
+
+    assert result[0]["name"] == "skills"
+    assert result[0]["original_name"] == "technologies"
+    assert "Python" in result[0]["text"]
+    assert "FastAPI" in result[0]["text"]
+
+    assert result[1]["name"] == "experience"
+    assert result[1]["original_name"] == "experience"
+    assert "Software Engineer" in result[1]["text"]
+
+def test_detect_technologies_and_tools_as_skills():
+    text = """TECHNOLOGIES & TOOLS
+Python
+Docker
+AWS
+
+EXPERIENCE
+ML Engineer
+"""
+
+    result = detect_sections(text)
+
+    assert result[0]["name"] == "skills"
+    assert result[0]["original_name"] == "technologies & tools"
+    assert result[1]["name"] == "experience"

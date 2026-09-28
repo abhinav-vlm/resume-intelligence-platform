@@ -2050,7 +2050,186 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 
 ---
 
-## 4. Master Status Matrix (R-001 through R-042)
+### R-043: Skills parser leaves bullet glyph attached to first skill token on lines without colons
+
+- **ID:** R-043
+- **Title:** Skills parser leaves bullet glyph attached to first skill token on lines without colons
+- **Status:** OPEN / AUDIT IDENTIFIED
+- **Severity:** P0
+- **Category:** Information Loss / Delimiter Boundary
+- **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+
+#### Observed Behavior
+When a resume formats skills as a bulleted list without category headers or colons (e.g. `• Python, Java and C++` or `• Python`), `extract_skill_candidates` does not strip leading bullet characters (`•`, `-`, `*`, `‣`, `●`). The first candidate retains the bullet (e.g. `"• Python"`). In `match_known_skill()`, `pattern.fullmatch("• Python")` fails, dropping the known skill into `unknown_candidates`.
+
+#### Evidence & Minimal Reproduction
+```python
+from src.parsers.skills_parser import extract_skills
+extract_skills("• Python, Java and C++")
+# => {'known': ['Java', 'C++'], 'unknown': ['• Python']}
+
+extract_skills("• Python\n• Java\n• C++")
+# => {'known': [], 'unknown': ['• Python', '• Java', '• C++']}
+```
+
+#### Impact
+Resumes formatting their skills section as plain bullet points fail detection on the first skill of every line.
+
+#### Likely Component
+`src/parsers/skills_parser.py` (`extract_skill_candidates`).
+
+#### Suggested Fix
+Strip bullet prefixes `("•", "-", "*", "‣", "●")` and whitespace from `value` before splitting candidates.
+
+---
+
+### R-044: Skills parser splits legitimate multi-word skills containing conjunction "and"
+
+- **ID:** R-044
+- **Title:** Skills parser splits legitimate multi-word skills containing conjunction "and"
+- **Status:** OPEN / AUDIT IDENTIFIED
+- **Severity:** P1
+- **Category:** Tokenization / Boundary Handling
+- **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+
+#### Observed Behavior
+The conjunction splitting regex `\s+and\s+` splits any occurrence of `" and "`, including inside established compound skill names such as `Data Structures and Algorithms`.
+
+#### Evidence & Minimal Reproduction
+```python
+from src.parsers.skills_parser import extract_skills
+extract_skills("Data Structures and Algorithms, DBMS")
+# => {'known': [], 'unknown': ['Data Structures', 'Algorithms', 'DBMS']}
+```
+
+#### Impact
+Established compound technical skills are fragmented into separate non-canonical phrases.
+
+#### Likely Component
+`src/parsers/skills_parser.py` (`extract_skill_candidates`).
+
+#### Suggested Fix
+Protect known multi-word phrases or prioritize phrase lookup before splitting on `\s+and\s+`.
+
+---
+
+### R-045: Skills parser splits slash-delimited acronym skills (e.g. CI/CD)
+
+- **ID:** R-045
+- **Title:** Skills parser splits slash-delimited acronym skills (e.g. CI/CD)
+- **Status:** OPEN / AUDIT IDENTIFIED
+- **Severity:** P1
+- **Category:** Tokenization / Delimiter Collision
+- **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+
+#### Observed Behavior
+Splitting on `/` divides compound acronyms like `CI/CD` or `TCP/IP` into `CI` and `CD` or `TCP` and `IP`.
+
+#### Evidence & Minimal Reproduction
+```python
+from src.parsers.skills_parser import extract_skills
+extract_skills("CI/CD, Docker, Kubernetes")
+# => {'known': ['Docker', 'Kubernetes'], 'unknown': ['CI', 'CD']}
+```
+
+#### Impact
+DevOps and networking skills containing internal slashes are fragmented.
+
+#### Likely Component
+`src/parsers/skills_parser.py` (`extract_skill_candidates`).
+
+#### Suggested Fix
+Protect recognized slash-containing skill tokens (`CI/CD`, `TCP/IP`) or only split slashes when flanked by spaces (`\s+/\s+`) or non-acronym tokens.
+
+---
+
+### R-046: `calculate_total_experience` skips year-only and year-to-Present tenures, calculating 0 months total experience
+
+- **ID:** R-046
+- **Title:** `calculate_total_experience` skips year-only and year-to-Present tenures, calculating 0 months total experience
+- **Status:** OPEN / AUDIT IDENTIFIED
+- **Severity:** P0
+- **Category:** Calculation Error / Normalization
+- **Observed in:** `experience_normalizer.py` (`calculate_total_experience`)
+
+#### Observed Behavior
+`calculate_total_experience` contains:
+```python
+if None in (start_month, end_month, start_year, end_year):
+    continue
+```
+When duration is specified as year-only (e.g. `2020 - 2024`), `start_month` and `end_month` are `None`. When duration is year-only to Present (e.g. `2024 - Present`), `start_month` is `None`. Consequently, `None in (...)` evaluates to `True` and the entire employment interval is discarded, returning 0 months.
+
+#### Evidence & Minimal Reproduction
+```python
+from src.normalizers.experience_normalizer import normalize_experience, calculate_total_experience
+exp = [{"company": "Acme", "duration": "2020 - 2024", "role": "Software Engineer", "description": []}]
+norm = normalize_experience(exp)
+calculate_total_experience(norm)
+# => 0
+
+exp2 = [{"company": "Acme", "duration": "2024 - Present", "role": "Software Engineer", "description": []}]
+norm2 = normalize_experience(exp2)
+calculate_total_experience(norm2)
+# => 0
+```
+
+#### Impact
+Candidates who list experience by year without explicit months receive 0 total experience months, failing minimum tenure ATS screening.
+
+#### Likely Component
+`src/normalizers/experience_normalizer.py` (`calculate_total_experience`).
+
+#### Suggested Fix
+When `start_year` and `end_year` are valid integers: default missing `start_month` to `1` (January) and missing `end_month` to `12` (December) (or current month if active employment) when building interval tuples.
+
+---
+
+### R-047: Education parser entry segmentation fails when Degree precedes Institution, corrupting degree assignment
+
+- **ID:** R-047
+- **Title:** Education parser entry segmentation fails when Degree precedes Institution, corrupting degree assignment
+- **Status:** OPEN / AUDIT IDENTIFIED
+- **Severity:** P0
+- **Category:** Information Loss / Entity Association
+- **Observed in:** `education_parser.py` (`_extract_education` and `_parse_education`)
+
+#### Observed Behavior
+`_extract_education()` only segments entries when encountering `INSTITUTION_KEYWORDS`. If a candidate formats their education with Degree before Institution:
+```text
+Bachelor of Technology in Computer Science
+Indian Institute of Technology, Delhi
+2012 - 2016
+CGPA: 8.80
+
+Master of Science in Computer Science
+Columbia University
+2016 - 2018
+CGPA: 3.90
+```
+`Master of Science` is appended into Entry 0's block. In `_parse_education()`, it overwrites Entry 0's degree (`IIT Delhi -> Master of Science`), and Columbia University is parsed with `degree: None`.
+
+#### Evidence & Minimal Reproduction
+```python
+from src.parsers.education_parser import process_education
+text = '''Bachelor of Technology in Computer Science\nIndian Institute of Technology, Delhi\n2012 - 2016\nCGPA: 8.80\n\nMaster of Science in Computer Science\nColumbia University\n2016 - 2018\nCGPA: 3.90'''
+process_education(text)
+# => Entry 0: Inst: Indian Institute of Technology, Delhi | Degree: Master of Science in Computer Science
+# => Entry 1: Inst: Columbia University | Degree: None
+```
+
+#### Impact
+Resumes with Degree preceding Institution have degrees misassociated and postgraduate degrees dropped.
+
+#### Likely Component
+`src/parsers/education_parser.py` (`_extract_education` and `_parse_education`).
+
+#### Suggested Fix
+Segment education blocks upon encountering an institution keyword OR degree keyword when an entry already has an assigned institution or degree.
+
+---
+
+## 4. Master Status Matrix (R-001 through R-047)
 
 | Issue ID | Severity | Category | Status | Fixed In | Summary Title |
 |---|---|---|---|---|---|
@@ -2058,7 +2237,7 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 | **R-002** | P0 | Info Loss | **FIXED** | Phase 4.5 Day 4/5 | LinkedIn URL extracted from PDF links is never surfaced |
 | **R-003** | P1 | Incorrect Ext | **OPEN** | — | Name parser returns first non-empty line unconditionally |
 | **R-004** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Wrapped experience bullets split into orphan line |
-| **R-005** | P1 | Incorrect Ext | **FIXED** | Phase 4.5 Day 5 | Experience parser previous-line company assumption |
+| **R-005** | P1 | Incorrect Ext | **PARTIAL** | Phase 4.5 Day 5 | Experience parser layout sensitivity (Role->Company works, Company->Role open) |
 | **R-006** | P1 | Date Handling | **FIXED** | Phase 4.5 Day 5 | Duration pattern misses `Month YYYY - Month YYYY` / "Present" |
 | **R-007** | P1 | Normalization | **OPEN** | — | Project title retains `\| GitHub` / `\| LIVE` suffix |
 | **R-008** | P1 | Info Loss | **FIXED** | Phase 4.5 Day 1 | Experience bullet continuation line dropped |
@@ -2070,12 +2249,12 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 | **R-014** | P1 | Info Loss | **OPEN** | — | Achievements section content completely discarded |
 | **R-015** | P1 | Info Loss | **OPEN** | — | Certifications and publications sections unparsed |
 | **R-016** | P2 | Schema Gap | **OPEN** | — | Summary / Profile / Objective section unextracted |
-| **R-017** | P2 | Normalization | **OPEN** | — | Skills normalizer wrapped multi-line skill values |
+| **R-017** | P2 | Normalization | **OPEN** | — | Skills normalizer case-sensitive duplicate check & multi-line values |
 | **R-018** | P3 | Glyphs/Noise | **OPEN** | — | Contact info glyph/icon artifacts in text |
 | **R-019** | P2 | Calculation | **OPEN** | — | `total_experience_months` inclusive +1 counting |
 | **R-020** | P4 | Noise | **OPEN** | — | Duplicate name artifact in text layer |
 | **R-021** | P2 | Normalization | **OPEN** | — | Degree aliases missing secondary / senior secondary / plurals |
-| **R-022** | P1 | Tokenization | **OPEN** | — | Skills parser drops skills separated by conjunction `" and "` |
+| **R-022** | P1 | Tokenization | **PARTIAL** | Phase 4.5 Day 6 B4 | Conjunction `\s+and\s+` split implemented; edge cases audited |
 | **R-023** | P0 | Boundary Det | **FIXED** | Phase 4.5 Day 5 | Standalone duration lines in projects become phantom titles |
 | **R-024** | P0 | Section Det | **FIXED** | Phase 4.5 Day 5 | "Technologies" header not in `SECTION_HEADERS` |
 | **R-025** | P0 | Entity Assoc | **FIXED** | Phase 4.5 Day 5 | Experience parser mistakes bullet with role keyword for role |
@@ -2096,12 +2275,17 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 | **R-040** | P2 | Keyword Cov | **OPEN** | — | Institution detection misses premier national institutes (`IISER`) |
 | **R-041** | P1 | Generalization| **MIGRATED**| issues_jd.md | JD parser misses `Title:` and unlabeled top-line roles (JD-002) |
 | **R-042** | P1 | Regex Limit | **MIGRATED**| issues_jd.md | JD YOE pattern fails on `Minimum X+ years` with qualifiers (JD-017) |
+| **R-043** | P0 | Delimiter Det | **OPEN** | — | Bullet glyph retained on un-colonized skill lines, dropping 1st skill |
+| **R-044** | P1 | Tokenization | **OPEN** | — | Conjunction splitting fragments compound skills (`Data Structures and Algorithms`) |
+| **R-045** | P1 | Delimiter Det | **OPEN** | — | Slash delimiter fragments acronym skills (`CI/CD` -> `CI`, `CD`) |
+| **R-046** | P0 | Calculation | **OPEN** | — | `calculate_total_experience` skips year-only & year-to-Present tenures (0 months) |
+| **R-047** | P0 | Entity Assoc | **OPEN** | — | Education parser degree overwritten when Degree precedes Institution |
 
 ### Status Ledger Summary
-- **Total Resume Issues Documented:** 40 (R-001 through R-040)
-- **FIXED:** 15 (R-001, R-002, R-004, R-005, R-006, R-008, R-009, R-010, R-013, R-023, R-024, R-025, R-030, R-031, R-035)
-- **PARTIALLY FIXED:** 2 (R-033, R-037)
-- **OPEN:** 23
+- **Total Resume Issues Documented:** 45 (R-001 through R-040, R-043 through R-047)
+- **FIXED:** 14 (R-001, R-002, R-004, R-006, R-008, R-009, R-010, R-013, R-023, R-024, R-025, R-030, R-031, R-035)
+- **PARTIALLY FIXED:** 4 (R-005, R-022, R-033, R-037)
+- **OPEN / AUDIT IDENTIFIED:** 27
 - **MIGRATED TO JD DOMAIN:** 2 (R-041 -> JD-002, R-042 -> JD-017)
 - **REGRESSIONS:** 0
 
@@ -2111,14 +2295,14 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 
 ### A. Current Status & Verified Baseline
 
-- **Current Block Status:** Block 1 = **COMPLETE** ✅
-- **Full Test Suite Baseline:** **359 passed**, 0 failed
+- **Current Block Status:** Phase 4.5 Day 6 Block 5 = **AUDIT COMPLETE** ✅
+- **Full Test Suite Baseline:** **408 passing tests**, 0 regressions (up from 401 Day 5 baseline; +7 new tests: 4 multipage service tests, 2 section detector tests, 1 skills conjunction test)
 - **Active Warnings:**
   - `PytestCacheWarning`: `could not create cache path D:\Projects\resume-intelligence-platform\.pytest_cache\v\cache\nodeids: [WinError 5] Access is denied`
   - **Classification:** Local Windows filesystem permissions issue on `.pytest_cache`. Tracked separately from functional test failures. It does **not** represent a product defect or test assertion failure.
 - **Baseline Checkpoint:**
-  > **Checkpoint:** `359 passing before Block 2 changes.`
-  > All subsequent blocks must preserve this green baseline without modifying or weakening existing tests.
+  > **Checkpoint:** `399 passing tests locked at Phase 4.5 Day 5 completion.`
+  > All subsequent blocks (Day 6 onward) must preserve this green baseline without modifying or weakening existing tests.
 
 ---
 

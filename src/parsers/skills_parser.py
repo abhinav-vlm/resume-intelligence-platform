@@ -27,11 +27,14 @@ def extract_skill_candidates(line: str) -> list[str]:
         value = line
 
     return [
-        candidate.strip()
-        for candidate in re.split(r"[,|/]", value)
-        if candidate.strip()
-    ]
-
+            candidate.strip()
+            for candidate in re.split(
+                r"[,|/]|\s+and\s+",
+                value,
+                flags=re.IGNORECASE,
+                )
+    if candidate.strip()
+]
 
 def is_skill_candidate(candidate: str) -> bool:
     candidate = candidate.strip()
