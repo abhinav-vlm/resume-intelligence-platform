@@ -2,7 +2,7 @@ from io import BytesIO
 import pymupdf
 import pytest
 from fastapi import UploadFile
-
+from fastapi import HTTPException
 from src.services.jd_service import process_jd
 
 
@@ -95,3 +95,45 @@ async def test_process_jd_skill_specific_experience():
             "experience_months": 24,
         },
     ]
+
+@pytest.mark.asyncio
+async def test_process_jd_invalid_pdf_returns_400():
+
+    file = UploadFile(
+        filename="invalid.pdf",
+        file=BytesIO(b"this is not a valid pdf"),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await process_jd(file)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Invalid PDF file"
+
+@pytest.mark.asyncio
+async def test_process_jd_pdf_and_text_paths_produce_same_jd():
+
+    text = (
+        "Backend Engineer\n"
+        "Python\n"
+        "FastAPI\n"
+        "SQL"
+    )
+
+    text_result = await process_jd(text)
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((50, 50), text)
+
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    file = UploadFile(
+        filename="jd.pdf",
+        file=BytesIO(pdf_bytes),
+    )
+
+    pdf_result = await process_jd(file)
+
+    assert pdf_result["jd"] == text_result["jd"]

@@ -1,0 +1,23 @@
+Data & ML Platform Engineer
+Databricks
+San Francisco, CA
+
+About the Role:
+We are looking for a Data & ML Platform Engineer to build scalable infrastructure powering data intelligence, distributed machine learning, and analytics at Databricks.
+
+Responsibilities:
+- Architect resilient data platforms using Apache Spark, Delta Lake, and Ray.
+- Build and scale managed MLflow and Kubeflow platforms for distributed training.
+- Design cloud infrastructure using Docker, Kubernetes, and AWS.
+- Write clean, performant services in Python, Scala, and Java.
+
+Requirements:
+- Minimum 3 years of software engineering experience.
+- Proficiency in Python, Java, Scala, and SQL.
+- Hands-on experience with Apache Spark, Delta Lake, or Ray.
+- Experience managing workloads with Docker, Kubernetes, and AWS.
+- Strong familiarity with Git and modern CI/CD practices.
+
+Preferred Qualifications:
+- Production experience with MLflow, Kubeflow, or distributed model training.
+- Deep understanding of cloud data architectures and distributed storage engines.

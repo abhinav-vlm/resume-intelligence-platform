@@ -1,0 +1,21 @@
+Title: Research Engineer, Foundation Models
+Google DeepMind
+London, UK
+
+Role Overview:
+Google DeepMind is looking for a Research Engineer to join our Foundation Models team to advance frontier artificial intelligence and large-scale deep learning research.
+
+Responsibilities:
+- Implement, train, and evaluate frontier foundation models and generative architectures.
+- Scale deep learning training pipelines across high-performance TPU and GPU accelerators.
+- Collaborate with research scientists to prototype novel algorithms and model architectures.
+
+Minimum Qualifications:
+- 2+ years of experience in research engineering or machine learning.
+- Strong programming background in Python.
+- Extensive experience with deep learning frameworks including PyTorch, JAX, or TensorFlow.
+- Practical understanding of deep learning fundamentals, transformers, and neural network optimization.
+
+Preferred Qualifications:
+- Experience with large-scale multi-node distributed model training.
+- Publications or contributions to open-source foundation model repositories.

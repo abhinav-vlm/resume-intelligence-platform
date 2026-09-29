@@ -103,17 +103,16 @@ def test_duplicate_skills():
 
 def test_unknown_duplicates_are_deduplicated():
     text = """
-    MongoDB
-    mongodb
-    MONGODB
+    LangChain
+    langchain
+    LANGCHAIN
     """
 
     result = extract_skills(text)
 
     assert result["unknown"] == [
-        "MongoDB",
+        "LangChain",
     ]
-
 
 # ============================================================
 # Boundary matching
@@ -181,15 +180,13 @@ def test_unknown_skills_are_preserved():
     assert result["known"] == [
         "Python",
         "React",
+        "MongoDB",
+        "PyTorch",
     ]
 
     assert result["unknown"] == [
-        "MongoDB",
-        "PyTorch",
         "LangChain",
     ]
-
-
 def test_unknown_skills_in_categorized_lines():
     text = """
     Languages: Python, C++, Rust
@@ -202,17 +199,16 @@ def test_unknown_skills_in_categorized_lines():
     assert result["known"] == [
         "Python",
         "C++",
+        "Rust",
         "React",
         "FastAPI",
-    ]
-
-    assert result["unknown"] == [
-        "Rust",
-        "Svelte",
         "MongoDB",
         "Redis",
     ]
 
+    assert result["unknown"] == [
+        "Svelte",
+    ]
 
 def test_multi_word_unknown_skill_is_preserved():
     text = """
@@ -242,14 +238,12 @@ def test_mixed_known_and_unknown_skills():
 
     assert result["known"] == [
         "Python",
-        "React",
-    ]
-
-    assert result["unknown"] == [
         "MongoDB",
+        "React",
         "PyTorch",
     ]
 
+    assert result["unknown"] == []
 
 # ============================================================
 # Candidate validation
@@ -301,8 +295,6 @@ def test_case_variation_preserves_surface_form():
         "python",
         "REACT",
     ]
-
-
 # ============================================================
 # Realistic mixed formatting
 # ============================================================
@@ -323,13 +315,13 @@ def test_realistic_mixed_skill_formatting():
         "JavaScript",
         "ReactJS",
         "FastAPI",
+        "MongoDB",
+        "Redis",
+        "NLP",
     ]
 
     assert result["unknown"] == [
-        "MongoDB",
-        "Redis",
         "Deep Learning",
-        "NLP",
     ]
 
 def test_conjunction_separated_skills_are_split():

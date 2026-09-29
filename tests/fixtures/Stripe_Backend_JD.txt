@@ -1,0 +1,22 @@
+Backend Engineer - Fraud & Risk Platform
+Stripe
+Seattle, WA
+
+Role Overview:
+Stripe builds economic infrastructure for the internet. As a Backend Engineer on the Fraud & Risk team, you will design and maintain high-throughput, low-latency distributed systems that evaluate transactions in real time.
+
+Responsibilities:
+- Build resilient, real-time backend services in Java and Python.
+- Design event-driven data streaming pipelines using Kafka and SQL databases.
+- Deploy scalable microservices containerized with Docker.
+- Collaborate with machine learning engineers to integrate Scikit-learn, XGBoost, and PyTorch scoring models into the live payment path.
+
+Requirements:
+- Minimum 3+ years of backend software engineering experience.
+- Strong proficiency in Python, Java, and SQL.
+- Hands-on experience building distributed systems with Kafka and Docker.
+- Familiarity with real-time scoring systems and ML inference (Scikit-learn, XGBoost, PyTorch).
+
+Preferred Qualifications:
+- Experience with high-availability financial transaction systems.
+- Understanding of fraud detection, anomaly detection, and risk scoring platforms.

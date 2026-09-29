@@ -1,0 +1,23 @@
+Machine Learning Engineer - Ranking & Recommendations
+Meta
+Menlo Park, CA
+
+About the Role:
+As a Machine Learning Engineer at Meta, you will build state-of-the-art recommendation systems and ranking algorithms that serve billions of users across our family of apps including Instagram, Facebook, and Threads.
+
+Responsibilities:
+- Design, build, and train large-scale recommendation systems and deep learning models.
+- Build high-throughput inference services containerized with Docker and Kubernetes.
+- Write clean, production-grade code in Python and query massive data stores with SQL.
+- Optimize distributed model training on GPU clusters using PyTorch and TensorFlow.
+
+Minimum Qualifications:
+- Minimum 4+ years of professional experience in applied machine learning.
+- Proven experience with deep learning and machine learning architectures.
+- Strong programming skills in Python and SQL.
+- Production experience with PyTorch or TensorFlow for deep neural networks.
+- Experience containerizing and deploying services using Docker and Kubernetes.
+
+Preferred Qualifications:
+- Experience with large-scale distributed training and high-throughput inference systems.
+- Knowledge of recommendation systems, ranking models, and graph embeddings.

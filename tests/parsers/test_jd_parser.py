@@ -237,7 +237,10 @@ def test_extract_skills_case_insensitive():
 
     result = _extract_skills(jd)
 
-    assert result == ["Python", "FastAPI"]
+    assert result == [
+        "Python",
+        "FastAPI",
+    ]
 
 def test_extract_skills_deduplicates():
     jd = [
@@ -250,14 +253,14 @@ def test_extract_skills_deduplicates():
 
     assert result == ["Python"]
 
-def test_extract_unknown_skill_is_ignored():
+def test_extract_unknown_skill_is_preserved():
     jd = [
-        "Experience with stakeholder management.",
+        "Experience with LangChain.",
     ]
 
     result = _extract_skills(jd)
 
-    assert result == []
+    assert result == ["LangChain"]
 
 def test_extract_skills_does_not_match_partial_word():
     jd = [
@@ -601,3 +604,48 @@ def test_extract_skill_specific_experience_without_of():
             "experience_months": 24,
         }
     ]
+
+def test_extract_known_and_unknown_skills():
+    jd = [
+        "Experience with Python, PyTorch, LangChain and Jupyter."
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == [
+        "Python",
+        "PyTorch",
+        "LangChain",
+        "Jupyter",
+    ]
+
+def test_extract_unknown_skills_deduplicates():
+    jd = [
+        "LangChain",
+        "langchain",
+        "LANGCHAIN",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == ["LangChain"]
+
+def test_extract_data_science_skills():
+    jd = [
+        "TensorFlow, PyTorch, Scikit-learn, Pandas",
+        "NumPy, Jupyter, Python, SQL",
+    ]
+
+    result = _extract_skills(jd)
+
+    assert result == [
+        "TensorFlow",
+        "PyTorch",
+        "Scikit-learn",
+        "Pandas",
+        "NumPy",
+        "Jupyter",
+        "Python",
+        "SQL",
+    ]
+

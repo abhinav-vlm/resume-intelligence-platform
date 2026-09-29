@@ -1,0 +1,29 @@
+Machine Learning Engineer
+Location: Bengaluru, India
+Experience: 3+ years
+
+Role Overview:
+We are seeking an experienced Machine Learning Engineer to design, build, and deploy production ML systems.
+
+About Us:
+We are a premier AI engineering platform empowering developers and enterprises with intelligent workflows.
+
+Responsibilities:
+- Develop and deploy machine learning models using Python and PyTorch.
+- Build scalable APIs and backend microservices with FastAPI and Docker.
+- Manage distributed training and inference workloads on AWS and Kubernetes.
+- Implement ML experiment tracking and model registry using MLflow.
+- Collaborate with data engineering to optimize SQL pipelines and data workflows.
+
+Skill-Specific Experience:
+- Python: 3+ years
+- Machine Learning: 2+ years
+- FastAPI: 1+ year
+- SQL: 2+ years
+
+Required Skills:
+- Python, SQL, FastAPI, Docker
+- Machine Learning, scikit-learn, PyTorch
+
+Preferred Skills:
+- AWS, Kubernetes, MLflow
