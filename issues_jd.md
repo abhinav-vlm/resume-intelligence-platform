@@ -1,52 +1,7 @@
 # JD Parser Issues
 
----
-
-## JD-001: Skills extraction entirely depends on a small closed `KNOWN_SKILLS` list — any unlisted skill is silently dropped
-
-- **Source:** All JD inputs
-- **Category:** Information Loss
-- **Severity:** P0
-
-### Observed
-`KNOWN_SKILLS` contains only 17 skills:
-```python
-{"Python", "C", "C++", "Java", "JavaScript", "TypeScript", "SQL", "MySQL",
- "React", "FastAPI", "Django", "Flask", "Git", "Node.js", "AWS", "Docker", "Kubernetes"}
-```
-
-Any skill not in this list — including extremely common ones like `TensorFlow`, `PyTorch`, `Pandas`, `NumPy`, `Scikit-learn`, `Redis`, `Kafka`, `Spark`, `Go`, `Rust`, `Ruby`, `MongoDB`, `PostgreSQL`, `GraphQL`, `REST`, `Spring`, `Angular`, `Vue`, `.NET`, `Azure`, `GCP`, `Terraform`, `Jenkins`, `CI/CD`, `Bash` — is **completely ignored**.
-
-Test (JD9):
-```
-Role: Data Scientist
-Requirements: TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, Jupyter, Python, SQL
-```
-Output:
-```json
-"skills": ["Python", "SQL"]
-```
-TensorFlow, PyTorch, Scikit-learn, Pandas, NumPy, Jupyter — all lost.
-
-### Source Evidence
-JD9 test: 8 skills listed in the JD. Only 2 (`Python`, `SQL`) are in `KNOWN_SKILLS`. The other 6 are entirely absent from the output.
-
-Re-verified on real PDF fixture `jd_ml_engineer_test.pdf`:
-The document lists required and preferred skills: `Python`, `Machine Learning`, `scikit-learn`, `SQL`, `FastAPI`, `Docker`, `AWS`, `Kubernetes`, `PyTorch`, `MLflow`.
-Output: `['Python', 'SQL', 'FastAPI', 'Docker', 'AWS', 'Kubernetes']`.
-`Machine Learning`, `scikit-learn`, `PyTorch`, and `MLflow` are completely lost because they are not present in `KNOWN_SKILLS`.
-
-### Expected
-A robust JD parser should extract all mentioned skills, not only those in a pre-defined list. At minimum, the known skills list must be dramatically expanded. Ideally, skill extraction should not rely solely on an exhaustive closed list.
-
-### Impact
-JD skill profiles are severely incomplete. Matching between resume skills and JD required skills will produce false negatives for any skill outside the 17-item list. A Data Science JD with TensorFlow and PyTorch would show `skills: [Python, SQL]` — an almost useless extraction.
-
-### Likely Area
-`src/configs/skill_configs.py` — `KNOWN_SKILLS`. `src/parsers/jd_parser.py` — `_extract_skills()`.
-
-### Status
-OPEN
+> [!NOTE]
+> **JD-001 has been RESOLVED.** The 17-skill closed list bottleneck was replaced in Phase 4.5 Day 7 with an expanded skill taxonomy and unknown technology candidate preservation. Resolution history is recorded in [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) under Section 8 (Phase 4.5 Day 7).
 
 ---
 
@@ -767,23 +722,24 @@ OPEN
 
 | | |
 |---|---|
-| **Documents tested** | 10 synthetic JD inputs + 1 real-world PDF fixture (`jd_ml_engineer_test.pdf`) + 9 real production JDs |
-| **Unique issues found** | 18 |
+| **Documents tested** | 10 synthetic JD inputs + 5 real-world PDF fixtures (`jd_ml_engineer_test.pdf`, `Meta_ML_JD.pdf`, `Databricks_SE_JD.pdf`, `DeepMind_Research_Engineer_JD.pdf`, `Stripe_Backend_JD.pdf`) |
+| **Unique issues found** | 18 (1 RESOLVED: JD-001) |
+| **Open issues** | 17 |
 
-### Issues by Severity
+### Issues by Severity (Current — Phase 4.5 Day 7 Baseline)
 
-| Severity | Count | IDs |
-|---|---|---|
-| P0 | 1 | JD-001 |
-| P1 | 7 | JD-002, JD-003, JD-004, JD-009, JD-016, JD-017, JD-018 |
-| P2 | 8 | JD-005, JD-006, JD-007, JD-008, JD-011, JD-012, JD-013, JD-014 |
-| P3 | 2 | JD-010, JD-015 |
+| Severity | Count | IDs | Status |
+|---|---|---|---|
+| ~~P0~~ | ~~1~~ | ~~JD-001~~ | **RESOLVED** (Phase 4.5 Day 7) |
+| P1 | 7 | JD-002, JD-003, JD-004, JD-009, JD-016, JD-017, JD-018 | OPEN |
+| P2 | 8 | JD-005, JD-006, JD-007, JD-008, JD-011, JD-012, JD-013, JD-014 | OPEN |
+| P3 | 2 | JD-010, JD-015 | OPEN |
 
-### Top 5 Highest-Priority Issues
+### Top 5 Highest-Priority Issues (Updated after JD-001 Resolution)
 
-1. **JD-001 (P0)** — Only 17 skills recognized; any other skill (TensorFlow, PyTorch, MongoDB, scikit-learn, MLflow, etc.) is silently dropped — verified with Data Science JD and `jd_ml_engineer_test.pdf`.
-2. **JD-018 (P1)** — Lack of structured section detection architecture causes total context loss between requirements, responsibilities, and noise.
-3. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
-4. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for 55% of real-world JD formats (Meta, DeepMind, Databricks, Uber).
-5. **JD-017 / JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) and domain qualifiers (`4+ years in ML`, `software engineering`) unparsed by `YOE_PATTERN` (89% failure rate on real JDs).
+1. **JD-018 (P1)** — Lack of structured section detection architecture causes total context loss between requirements, responsibilities, and noise.
+2. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
+3. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for 55% of real-world JD formats (Meta, DeepMind, Databricks, Uber).
+4. **JD-017 / JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) and domain qualifiers (`4+ years in ML`, `software engineering`) unparsed by `YOE_PATTERN` (89% failure rate on real JDs).
+5. **JD-009 (P1)** — Noise section filtering is non-reentrant: valid content after an unrecognized non-noise section header is permanently dropped.
 
