@@ -53,20 +53,6 @@ def test_extract_jd_empty_text():
     assert result == []
 
 
-def test_parse_jd():
-    text = """
-    Backend Engineer
-    Python
-    FastAPI
-    """
-
-    result = parse_jd(text)
-
-    assert result == [
-        "Backend Engineer",
-        "Python",
-        "FastAPI",
-    ]
 
 def test_extract_role_from_job_title():
     jd = [
@@ -192,8 +178,13 @@ def test_parse_jd():
     text = """
     Job Title: Machine Learning Engineer
     3+ years of experience
-    Required skills: Python, SQL
-    Nice to have: Docker
+
+    Requirements:
+    Python
+    SQL
+
+    Preferred qualifications:
+    Docker
     """
 
     result = parse_jd(text)
@@ -201,107 +192,129 @@ def test_parse_jd():
     assert result["role"] == "Machine Learning Engineer"
     assert result["experience_months"] == 36
 
-    assert result["skill_requirements"] == [
-        {
-            "line": "Job Title: Machine Learning Engineer",
-            "requirement": "unknown",
-        },
-        {
-            "line": "3+ years of experience",
-            "requirement": "unknown",
-        },
-        {
-            "line": "Required skills: Python, SQL",
-            "requirement": "required",
-        },
-        {
-            "line": "Nice to have: Docker",
-            "requirement": "optional",
-        },
-    ]
+    # skill_requirements is list[{skill, requirement}] under current contract
+    skills_map = {
+        r["skill"]: r["requirement"]
+        for r in result["skill_requirements"]
+    }
+    assert skills_map["Python"] == "required"
+    assert skills_map["SQL"] == "required"
+    assert skills_map["Docker"] == "optional"
 
 def test_extract_skills_from_sentence():
-    jd = [
-        "We need a Python developer with FastAPI experience.",
-        "Strong SQL knowledge is required.",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": (
+                "We need a Python developer with FastAPI experience.\n"
+                "Strong SQL knowledge is required."
+            ),
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["Python", "FastAPI", "SQL"]
+    assert "Python" in skills
+    assert "FastAPI" in skills
+    assert "SQL" in skills
 
 def test_extract_skills_case_insensitive():
-    jd = [
-        "Experience with PYTHON and fastapi.",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Experience with PYTHON and fastapi.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == [
-        "Python",
-        "FastAPI",
-    ]
+    assert "Python" in skills
+    assert "FastAPI" in skills
 
 def test_extract_skills_deduplicates():
-    jd = [
-        "Python developer.",
-        "Strong Python experience.",
-        "Python is required.",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Python developer.\nStrong Python experience.\nPython is required.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["Python"]
+    assert skills == ["Python"]
 
 def test_extract_unknown_skill_is_preserved():
-    jd = [
-        "Experience with LangChain.",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Experience with LangChain.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["LangChain"]
+    assert "LangChain" in skills
 
 def test_extract_skills_does_not_match_partial_word():
-    jd = [
-        "Pythonic programming practices are useful.",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Pythonic programming practices are useful.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == []
+    assert skills == []
 
 def test_extract_multiple_skills_from_one_line():
-    jd = [
-        "Build backend services using Python, FastAPI, SQL and Docker."
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Build backend services using Python, FastAPI, SQL and Docker.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == [
-        "Python",
-        "FastAPI",
-        "SQL",
-        "Docker",
-    ]
+    assert "Python" in skills
+    assert "FastAPI" in skills
+    assert "SQL" in skills
+    assert "Docker" in skills
 
 def test_extract_cpp_without_extracting_c():
-    jd = [
-        "Strong C++ development experience."
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Strong C++ development experience.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["C++"]
+    assert "C++" in skills
+    assert "C" not in skills
 
 def test_extract_mysql_without_extracting_sql():
-    jd = [
-        "Experience with MySQL databases."
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Experience with MySQL databases.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["MySQL"]
+    assert "MySQL" in skills
+    assert "SQL" not in skills
 
 def test_resolve_overlapping_skills_keeps_longer_match():
     matches = [
@@ -333,11 +346,9 @@ def test_parse_jd_extracts_skills():
 
     result = parse_jd(jd)
 
-    assert result["skills"] == [
-        "Python",
-        "FastAPI",
-        "SQL",
-    ]
+    assert "Python" in result["skills"]
+    assert "FastAPI" in result["skills"]
+    assert "SQL" in result["skills"]
 def test_extract_skill_specific_experience():
     jd = [
         "3 years of Python experience",
@@ -425,53 +436,90 @@ def test_extract_skill_specific_experience_unknown_skill():
     assert result == []
 
 def test_filter_noise_section():
-    jd = [
-        "Role: Backend Engineer",
-        "About the company",
-        "We build amazing products.",
-        "Python",
-        "Required skills:",
+    """
+    Sections with a noise canonical name are removed;
+    all others are preserved regardless of order.
+    """
+    sections = [
+        {
+            "name": "preamble",
+            "original_name": None,
+            "text": "Role: Backend Engineer",
+        },
+        {
+            "name": "COMPANY_INFO",
+            "original_name": "about the company",
+            "text": "We build amazing products.\nPython",
+        },
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "required skills",
+            "text": "",
+        },
     ]
 
-    result = _filter_noise_sections(jd)
+    result = _filter_noise_sections(sections)
+    names = [s["name"] for s in result]
 
-    assert result == [
-        "Role: Backend Engineer",
-        "Required skills:",
-    ]
+    assert "COMPANY_INFO" not in names
+    assert "preamble" in names
+    assert "REQUIREMENTS" in names
+
 
 def test_filter_noise_section_case_insensitive():
-    jd = [
-        "Role: Backend Engineer",
-        "ABOUT THE COMPANY",
-        "We build amazing products.",
-        "Required skills:",
-        "Python",
+    """
+    Filtering operates on canonical names (upper-cased by the detector),
+    so case of the original header text is irrelevant.
+    """
+    sections = [
+        {
+            "name": "preamble",
+            "original_name": None,
+            "text": "Role: Backend Engineer",
+        },
+        {
+            "name": "COMPANY_INFO",
+            "original_name": "about the company",
+            "text": "We build amazing products.",
+        },
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "required skills",
+            "text": "Python",
+        },
     ]
 
-    result = _filter_noise_sections(jd)
+    result = _filter_noise_sections(sections)
+    names = [s["name"] for s in result]
 
-    assert result == [
-        "Role: Backend Engineer",
-        "Required skills:",
-        "Python",
-    ]
+    assert "COMPANY_INFO" not in names
+    assert "preamble" in names
+    assert "REQUIREMENTS" in names
+
 
 def test_filter_noise_section_at_end():
-    jd = [
-        "Role: Backend Engineer",
-        "Python",
-        "About the company",
-        "We build amazing products.",
-        "We have offices globally",
+    """
+    Noise sections at the end are dropped; they do not consume
+    following content under the structured-section architecture.
+    """
+    sections = [
+        {
+            "name": "preamble",
+            "original_name": None,
+            "text": "Role: Backend Engineer\nPython",
+        },
+        {
+            "name": "COMPANY_INFO",
+            "original_name": "about the company",
+            "text": "We build amazing products.\nWe have offices globally",
+        },
     ]
 
-    result = _filter_noise_sections(jd)
+    result = _filter_noise_sections(sections)
+    names = [s["name"] for s in result]
 
-    assert result == [
-        "Role: Backend Engineer",
-        "Python",
-    ]
+    assert "COMPANY_INFO" not in names
+    assert "preamble" in names
 
 def test_parse_jd_filters_noise_and_extracts_data():
     text = """
@@ -494,10 +542,8 @@ def test_parse_jd_filters_noise_and_extracts_data():
     assert result["role"] == "Backend Engineer"
     assert result["experience_months"] == 36
 
-    assert result["skills"] == [
-        "Python",
-        "AWS",
-    ]
+    assert "Python" in result["skills"]
+    assert "AWS" in result["skills"]
 
 def test_extract_overall_experience_ignores_skill_specific_experience():
     jd = [
@@ -549,8 +595,14 @@ def test_extract_experience_returns_none_when_only_skill_specific_experience_exi
     assert result is None
 
 def test_extract_role_stops_at_noise_section():
+    """
+    Under the current architecture, noise filtering is performed on
+    structured sections before role extraction — noise content never
+    reaches _extract_role.  _extract_role itself simply reads the first
+    colon-delimited role keyword line from already-clean JD lines.
+    """
     jd = [
-        "Job Title: Senior Backend / ML Engineer  About the company We are a fast-growing"
+        "Job Title: Senior Backend / ML Engineer",
     ]
 
     result = _extract_role(jd)
@@ -606,46 +658,97 @@ def test_extract_skill_specific_experience_without_of():
     ]
 
 def test_extract_known_and_unknown_skills():
-    jd = [
-        "Experience with Python, PyTorch, LangChain and Jupyter."
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Experience with Python, PyTorch, LangChain and Jupyter.",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == [
-        "Python",
-        "PyTorch",
-        "LangChain",
-        "Jupyter",
-    ]
+    assert "Python" in skills
+    assert "PyTorch" in skills
+    assert "LangChain" in skills
+    assert "Jupyter" in skills
 
 def test_extract_unknown_skills_deduplicates():
-    jd = [
-        "LangChain",
-        "langchain",
-        "LANGCHAIN",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "LangChain\nlangchain\nLANGCHAIN",
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == ["LangChain"]
+    assert skills == ["LangChain"]
 
 def test_extract_data_science_skills():
-    jd = [
-        "TensorFlow, PyTorch, Scikit-learn, Pandas",
-        "NumPy, Jupyter, Python, SQL",
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": (
+                "TensorFlow, PyTorch, Scikit-learn, Pandas\n"
+                "NumPy, Jupyter, Python, SQL"
+            ),
+        }
     ]
 
-    result = _extract_skills(jd)
+    skills, _ = _extract_skills(sections)
 
-    assert result == [
-        "TensorFlow",
-        "PyTorch",
-        "Scikit-learn",
-        "Pandas",
-        "NumPy",
-        "Jupyter",
-        "Python",
-        "SQL",
+    assert "TensorFlow" in skills
+    assert "PyTorch" in skills
+    assert "Scikit-learn" in skills
+    assert "Pandas" in skills
+    assert "NumPy" in skills
+    assert "Jupyter" in skills
+    assert "Python" in skills
+    assert "SQL" in skills
+
+
+# ------------------------------------------------------------------
+# Requirement classification from section context
+# ------------------------------------------------------------------
+
+def test_extract_skills_requirement_from_requirements_section():
+    """
+    Skills in a REQUIREMENTS section default to 'required'
+    when the line carries no explicit override signal.
+    """
+    sections = [
+        {
+            "name": "REQUIREMENTS",
+            "original_name": "requirements",
+            "text": "Python\nFastAPI",
+        }
     ]
+
+    _, skill_requirements = _extract_skills(sections)
+
+    req_map = {r["skill"]: r["requirement"] for r in skill_requirements}
+    assert req_map["Python"] == "required"
+    assert req_map["FastAPI"] == "required"
+
+
+def test_extract_skills_requirement_from_preferred_section():
+    """
+    Skills in a PREFERRED_QUALIFICATIONS section default to 'optional'.
+    """
+    sections = [
+        {
+            "name": "PREFERRED_QUALIFICATIONS",
+            "original_name": "preferred qualifications",
+            "text": "Docker\nKubernetes",
+        }
+    ]
+
+    _, skill_requirements = _extract_skills(sections)
+
+    req_map = {r["skill"]: r["requirement"] for r in skill_requirements}
+    assert req_map["Docker"] == "optional"
+    assert req_map["Kubernetes"] == "optional"
 

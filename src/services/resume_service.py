@@ -2,7 +2,11 @@ from fastapi import UploadFile
 
 from ..utils.resume_metadata_utils import extract_linkedin
 
-from ..parsers.pdf_parser import extract_text,extract_text_blocks,extract_links
+from ..parsers.pdf_parser import (
+    extract_text,
+    extract_text_blocks,
+    extract_links,
+)
 from ..parsers.text_parser import clean_text
 from ..parsers.email_parser import extract_email
 from ..parsers.phone_parser import extract_phone
@@ -12,6 +16,11 @@ from ..parsers.education_parser import process_education
 from ..parsers.experience_parser import process_experience
 from ..parsers.project_parser import process_projects
 from ..parsers.section_detector import detect_sections
+
+from ..configs.header_configs import (
+    SECTION_HEADERS,
+    SECTION_ALIASES,
+)
 
 from ..normalizers.project_normalizer import normalize_projects
 from ..normalizers.education_normalizer import normalize_education
@@ -24,28 +33,42 @@ from ..normalizers.skill_normalizer import normalize_skills
 from ..analyzers.completeness_analyzer import analyze_completeness
 from ..analyzers.quality_analyzer import analyze_quality
 from ..analyzers.formatting_analyzer import analyze_formatting
-from ..analyzers.skill_experience_analyzer import process_skill_experience
+from ..analyzers.skill_experience_analyzer import (
+    process_skill_experience,
+)
 
 
-async def process_resume(file:UploadFile):
+async def process_resume(file: UploadFile):
     if file.content_type != "application/pdf":
-        return{
-             "error":"Only PDF files allowed"
+        return {
+            "error": "Only PDF files allowed"
         }
-    
+
     content = await file.read()
-    
+
     text = extract_text(content)
 
     text_blocks = extract_text_blocks(content)
-    
+
     links = extract_links(content)
-    
+
     linkedin = extract_linkedin(links)
 
     cleaned_text = clean_text(text)
 
-    sections = detect_sections(cleaned_text)
+    # --------------------------------------------------
+    # Shared section detector
+    # --------------------------------------------------
+
+    sections = detect_sections(
+        cleaned_text,
+        section_headers=SECTION_HEADERS,
+        section_aliases=SECTION_ALIASES,
+    )
+
+    # --------------------------------------------------
+    # Metadata
+    # --------------------------------------------------
 
     email = extract_email(cleaned_text)
 
@@ -53,33 +76,103 @@ async def process_resume(file:UploadFile):
 
     name = extract_name(cleaned_text)
 
-    skill_text = "\n".join(section["text"] for section in sections if section["name"] == "skills")
+    # --------------------------------------------------
+    # Skills
+    # --------------------------------------------------
+
+    skill_text = "\n".join(
+        section["text"]
+        for section in sections
+        if section["name"] == "skills"
+    )
 
     skill_data = extract_skills(skill_text)
-    skills = normalize_skills(skill_data["known"])
+
+    skills = normalize_skills(
+        skill_data["known"]
+    )
+
     unknown_skills = skill_data["unknown"]
-    
-    education_text = "\n".join(section["text"] for section in sections if section["name"] == "education")
-    
-    education = process_education(education_text)
 
-    experience_text = "\n".join(section["text"] for section in sections if section["name"] == "experience")
+    # --------------------------------------------------
+    # Education
+    # --------------------------------------------------
 
-    experience = process_experience(experience_text) or []
+    education_text = "\n".join(
+        section["text"]
+        for section in sections
+        if section["name"] == "education"
+    )
 
-    projects = process_projects(text_blocks, links)
+    education = process_education(
+        education_text
+    )
+
+    # --------------------------------------------------
+    # Experience
+    # --------------------------------------------------
+
+    experience_text = "\n".join(
+        section["text"]
+        for section in sections
+        if section["name"] == "experience"
+    )
+
+    experience = (
+        process_experience(
+            experience_text
+        )
+        or []
+    )
+
+    # --------------------------------------------------
+    # Projects
+    # --------------------------------------------------
+
+    projects = process_projects(
+        text_blocks,
+        links,
+    )
+
+    # --------------------------------------------------
+    # Normalization
+    # --------------------------------------------------
 
     if education:
-       education = normalize_education(education)
+        education = normalize_education(
+            education
+        )
+
     total_experience_months = 0
+
     if experience:
-       experience = normalize_experience(experience)
-       total_experience_months = calculate_total_experience(experience)
+        experience = normalize_experience(
+            experience
+        )
+
+        total_experience_months = (
+            calculate_total_experience(
+                experience
+            )
+        )
 
     if projects:
-       projects = normalize_projects(projects)
-       
-    skill_experience = process_skill_experience(experience,skills)
+        projects = normalize_projects(
+            projects
+        )
+
+    # --------------------------------------------------
+    # Skill experience
+    # --------------------------------------------------
+
+    skill_experience = process_skill_experience(
+        experience,
+        skills,
+    )
+
+    # --------------------------------------------------
+    # Analyzer input
+    # --------------------------------------------------
 
     resume_data = {
         "name": name,
@@ -92,32 +185,45 @@ async def process_resume(file:UploadFile):
         "skills": skills,
         "linkedin": linkedin,
         "unknown_skills": unknown_skills,
-        "total_experience_months":total_experience_months,
+        "total_experience_months": total_experience_months,
         "skill_experience": skill_experience,
         "text": cleaned_text,
     }
 
-    completeness = analyze_completeness(resume_data)
-    quality = analyze_quality(resume_data)
-    formatting = analyze_formatting(resume_data)
-    return{
-        "filename":file.filename,
-        'text':cleaned_text,
-        "email":email,
-        "phone":phone,
-        "name":name,
+    completeness = analyze_completeness(
+        resume_data
+    )
+
+    quality = analyze_quality(
+        resume_data
+    )
+
+    formatting = analyze_formatting(
+        resume_data
+    )
+
+    # --------------------------------------------------
+    # Response
+    # --------------------------------------------------
+
+    return {
+        "filename": file.filename,
+        "text": cleaned_text,
+        "email": email,
+        "phone": phone,
+        "name": name,
         "linkedin": linkedin,
         "sections": sections,
-        'education':education,
-        'experience':experience,
-        'projects':projects,
+        "education": education,
+        "experience": experience,
+        "projects": projects,
         "skills": skills,
         "unknown_skills": unknown_skills,
-        "total_experience_months":total_experience_months,
-        "completeness":completeness,
-        "quality_check":quality,
+        "total_experience_months": total_experience_months,
+        "completeness": completeness,
+        "quality_check": quality,
         "formatting_check": formatting,
-        "skill_experience":skill_experience,
-        "content_type":file.content_type,
-        "message":"Resume received successfully"
+        "skill_experience": skill_experience,
+        "content_type": file.content_type,
+        "message": "Resume received successfully",
     }

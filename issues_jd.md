@@ -3,6 +3,9 @@
 > [!NOTE]
 > **JD-001 has been RESOLVED.** The 17-skill closed list bottleneck was replaced in Phase 4.5 Day 7 with an expanded skill taxonomy and unknown technology candidate preservation. Resolution history is recorded in [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) under Section 8 (Phase 4.5 Day 7).
 
+> [!NOTE]
+> **JD-004, JD-006, JD-008, JD-009, JD-015, JD-018 have been RESOLVED.** The structured-section production refactor (Phase 4.5 Day 8) replaced the flat line-based JD parser with a shared section-detector contract. Test contracts were migrated and one genuine production bug was fixed. Resolution history is recorded in [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) under Section 9 (Phase 4.5 Day 8).
+
 ---
 
 ## JD-002: Role extraction only works when a `Role:`, `Position:`, or `Job Title:` label is present — fails for all other formats
@@ -161,7 +164,9 @@ The `skill_requirements` output is misleading: skills listed under `Required:` a
 `src/parsers/jd_parser.py` — `parse_jd()` calls `_classify_skill_requirement(line)` for each line independently with no state carryover from preceding section headers.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `_classify_skill_requirement()` now accepts a `parent_section` argument. `_section_requirement_context()` maps canonical section names (`REQUIREMENTS`, `BASIC_QUALIFICATIONS`, `MINIMUM_QUALIFICATIONS` → `"required"`; `PREFERRED_QUALIFICATIONS`, `BONUS`, `DESIRED` → `"optional"`) to a default requirement level. Explicit line-level signals still take precedence. `_extract_skills()` passes `section_name` as `parent_section` when classifying each line within a section body. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.2.
 
 ---
 
@@ -230,7 +235,9 @@ Noise content from unrecognized headers leaks into the processed JD content. Ski
 `src/configs/jd_configs.py` — `NOISE_SECTION_HEADERS`. `src/parsers/jd_parser.py` — `_filter_noise_sections()`.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `_filter_noise_sections()` now operates on structured section dicts and filters on `section["name"] not in NOISE_SECTIONS`. The NOISE_SECTIONS set covers canonical names (`COMPANY_INFO`, `EQUAL_OPPORTUNITY`, `NOISE`). Additionally, `detect_sections()` with `prefix_matching=True` handles decorated headers (`"About Us - Our Story"`) via alias prefix matching — eliminating the need to exhaustively enumerate every variant. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.2.
 
 ---
 
@@ -321,7 +328,9 @@ Any downstream component wanting to distinguish required vs. optional skills mus
 `src/parsers/jd_parser.py` — `parse_jd()` output schema. No per-skill requirement resolution.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `_extract_skills()` now returns a unified `(skills, skill_requirements)` tuple. Each `skill_requirements` entry is `{"skill": str, "requirement": str}` — a direct per-skill requirement association. Downstream consumers no longer need to join across two lists. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.2.
 
 ---
 
@@ -374,7 +383,9 @@ Requirements stated after a noise section (e.g., after an "About Us" block, then
 `src/parsers/jd_parser.py` — `_filter_noise_sections()`, lines 117-133.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `_filter_noise_sections()` is now structurally re-entrant. It operates on an already-segmented `list[dict]` produced by `detect_sections()`. Every section is an independent object; filtering is a pure set-membership check (`section["name"] not in NOISE_SECTIONS`) with no stateful flag. A noise section at any position discards only its own body — all subsequent sections are unaffected. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.2.
 
 ---
 
@@ -588,7 +599,9 @@ Noise content under decorated headers (`About Us - Company Overview`) is not fil
 `src/parsers/jd_parser.py` — `_filter_noise_sections()` line 122.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `prefix_matching=True` in `detect_sections()` matches headers using a prefix/separator check: a candidate line is recognized if it starts with a known alias and the next character is a space, `-`, `|`, `:`, or `/`. This handles `"About Us - Our Story"`, `"About the Company | Our Mission"`, etc. without requiring exhaustive alias enumeration. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.2.
 
 ---
 
@@ -714,7 +727,9 @@ JD parsing remains fragile, context-blind, and incapable of reliably distinguish
 `src/parsers/jd_parser.py`, `src/configs/jd_configs.py`, and a new or shared section detector.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 8
+
+**Resolution:** `detect_jd_sections()` was added to `src/parsers/jd_parser.py`. It delegates to the shared `detect_sections()` (in `src/parsers/section_detector.py`) with `JD_SECTION_HEADERS`, `JD_SECTION_ALIASES`, and `prefix_matching=True`. All downstream JD extractors (`_extract_skills`, `_filter_noise_sections`, `parse_jd`) now operate on structured section dicts. See [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) §9.
 
 ---
 
@@ -723,23 +738,26 @@ OPEN
 | | |
 |---|---|
 | **Documents tested** | 10 synthetic JD inputs + 5 real-world PDF fixtures (`jd_ml_engineer_test.pdf`, `Meta_ML_JD.pdf`, `Databricks_SE_JD.pdf`, `DeepMind_Research_Engineer_JD.pdf`, `Stripe_Backend_JD.pdf`) |
-| **Unique issues found** | 18 (1 RESOLVED: JD-001) |
-| **Open issues** | 17 |
+| **Unique issues found** | 18 (7 RESOLVED: JD-001, JD-004, JD-006, JD-008, JD-009, JD-015, JD-018) |
+| **Open issues** | 11 |
 
-### Issues by Severity (Current — Phase 4.5 Day 7 Baseline)
+### Issues by Severity (Current — Phase 4.5 Day 8 Baseline)
 
 | Severity | Count | IDs | Status |
 |---|---|---|---|
 | ~~P0~~ | ~~1~~ | ~~JD-001~~ | **RESOLVED** (Phase 4.5 Day 7) |
-| P1 | 7 | JD-002, JD-003, JD-004, JD-009, JD-016, JD-017, JD-018 | OPEN |
-| P2 | 8 | JD-005, JD-006, JD-007, JD-008, JD-011, JD-012, JD-013, JD-014 | OPEN |
-| P3 | 2 | JD-010, JD-015 | OPEN |
+| P1 | 4 | JD-002, JD-003, JD-016, JD-017 | OPEN |
+| ~~P1~~ | ~~3~~ | ~~JD-004, JD-009, JD-018~~ | **RESOLVED** (Phase 4.5 Day 8) |
+| P2 | 5 | JD-005, JD-007, JD-011, JD-012, JD-014 | OPEN |
+| ~~P2~~ | ~~3~~ | ~~JD-006, JD-008, JD-013~~ | **RESOLVED** (Day 7: JD-013; Day 8: JD-006, JD-008) |
+| P3 | 2 | JD-010, JD-015 | OPEN (JD-015: superseded by Day 8 resolution) |
+| ~~P3~~ | ~~1~~ | ~~JD-015~~ | **RESOLVED** (Phase 4.5 Day 8) |
 
-### Top 5 Highest-Priority Issues (Updated after JD-001 Resolution)
+### Top 5 Highest-Priority Open Issues (Updated after Day 8 Resolutions)
 
-1. **JD-018 (P1)** — Lack of structured section detection architecture causes total context loss between requirements, responsibilities, and noise.
-2. **JD-004 (P1)** — `skill_requirements` classifier does not inherit context from section headers — items under `Required:` are classified `unknown`.
-3. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for 55% of real-world JD formats (Meta, DeepMind, Databricks, Uber).
-4. **JD-017 / JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) and domain qualifiers (`4+ years in ML`, `software engineering`) unparsed by `YOE_PATTERN` (89% failure rate on real JDs).
-5. **JD-009 (P1)** — Noise section filtering is non-reentrant: valid content after an unrecognized non-noise section header is permanently dropped.
+1. **JD-002 (P1)** — Role extraction only works with labeled `Role:`/`Position:`/`Job Title:` prefixes — fails for 55% of real-world JD formats (Meta, DeepMind, Databricks, Uber).
+2. **JD-017 / JD-016 (P1)** — Labeled experience format (`Experience: 3+ years`) and domain qualifiers (`4+ years in ML`, `software engineering`) unparsed by `YOE_PATTERN` (89% failure rate on real JDs).
+3. **JD-003 (P1)** — `skill_specific_experience` pattern misses `X years of experience in <skill>` and `<skill>: N+ years` formats.
+4. **JD-012 (P2)** — `skill_requirements` populated from every JD line including headers and boilerplate — high noise ratio.
+5. **JD-014 (P2)** — No education requirements field in JD output schema — cannot match candidate education to JD requirements.
 

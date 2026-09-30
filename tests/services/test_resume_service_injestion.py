@@ -183,7 +183,7 @@ async def test_process_resume_passes_uploaded_content_to_pdf_pipeline(
     monkeypatch.setattr(
         resume_service,
         "detect_sections",
-        lambda text: [],
+        lambda text, section_headers=None, section_aliases=None, **kwargs: [],
     )
 
     monkeypatch.setattr(
@@ -291,7 +291,7 @@ async def test_process_resume_detects_sections_from_cleaned_text(
         calls["clean_text_input"] = text
         return cleaned_text
 
-    def fake_detect_sections(text):
+    def fake_detect_sections(text, section_headers=None, section_aliases=None, **kwargs):
         calls["detect_sections_input"] = text
         return []
 
@@ -362,7 +362,7 @@ async def test_process_resume_reads_uploaded_pdf_content_once(
     monkeypatch.setattr(
         resume_service,
         "detect_sections",
-        lambda text: [],
+        lambda text, section_headers=None, section_aliases=None, **kwargs: [],
     )
 
     await resume_service.process_resume(file)
@@ -409,7 +409,7 @@ async def test_process_resume_extracts_linkedin_from_pdf_links(
     monkeypatch.setattr(
         resume_service,
         "detect_sections",
-        lambda text: [],
+        lambda text, section_headers=None, section_aliases=None, **kwargs: [],
     )
 
     result = await resume_service.process_resume(

@@ -471,3 +471,102 @@ Validated skill extraction against 5 real production JDs with a combined 43 expe
 Both compound fragments are extracted as individual known/unknown skills. The extraction engine is not designed for compound multi-word technology name recognition. This is cataloged in [`future_architecture_tasks.md`](file:///d:/Projects/resume-intelligence-platform/future_architecture_tasks.md).
 
 ---
+
+## 9. Phase 4.5 Day 8 Execution Summary (Audit Date: 2026-09-30)
+
+**Audit Date:** 2026-09-30  
+**Scope:** JD Section Detection & Requirement Context — test-contract migration for the pre-existing structured-section production refactor + one genuine production bug fix.  
+**Baseline at start of Day 8:** 425 passed, 0 failed.  
+**Starting regression state:** 390 passed, 35 failed (stale test contracts against the new structured-section API).
+
+### 9.1 Pre-existing Production Refactor (not introduced on Day 8)
+
+The following production changes were already committed before Day 8 work began and are the source of truth:
+
+| File | Change |
+|---|---|
+| [`src/parsers/section_detector.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/section_detector.py) | `detect_sections()` generalised: added `section_headers`, `section_aliases`, `prefix_matching` params; returns `list[dict]` with `{name, original_name, text}` for every section |
+| [`src/configs/jd_configs.py`](file:///d:/Projects/resume-intelligence-platform/src/configs/jd_configs.py) | Added `JD_SECTION_HEADERS`, `JD_SECTION_ALIASES`, `NOISE_SECTIONS` covering all JD canonical section names |
+| [`src/parsers/jd_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py) | `detect_jd_sections()` added; `_filter_noise_sections()` rewritten to filter on `section["name"]`; `_extract_skills()` accepts `list[dict]` sections and returns `(skills, skill_requirements)` with `{skill, requirement}` objects; `_classify_skill_requirement()` inherits section context via `parent_section`; `parse_jd()` reconstructs `clean_jd` from structured sections |
+| [`src/services/resume_service.py`](file:///d:/Projects/resume-intelligence-platform/src/services/resume_service.py) | `detect_sections()` called with explicit `section_headers=SECTION_HEADERS, section_aliases=SECTION_ALIASES` keyword arguments |
+
+### 9.2 Issues Resolved on Day 8
+
+| Issue ID | Severity | Category | Problem Summary | Verified Fix |
+|---|---|---|---|---|
+| **JD-018** | **P1** | Architecture | JD parser lacked structured section detector — all context was lost across sections | `detect_jd_sections()` delegates to shared `detect_sections()` with JD-specific headers and aliases; `prefix_matching=True` handles decorated headers |
+| **JD-004** | **P1** | Incorrect Extraction | `skill_requirements` classifier didn't inherit section context — child lines under `Required:` classified as `unknown` | `_classify_skill_requirement()` now accepts `parent_section`; `_section_requirement_context()` maps canonical names to default requirement levels |
+| **JD-008** | **P2** | Schema Limitation | `skills` and `skill_requirements` were separate lists with no per-skill requirement link | `_extract_skills()` returns unified `(skills, skill_requirements)` where each entry is `{skill, requirement}` |
+| **JD-006** | **P2** | Generalization | `_filter_noise_sections` required exact lowercase match — decorated headers not filtered | Noise filtering now operates on canonical `section["name"]` membership in `NOISE_SECTIONS`; prefix matching handles decorated variants |
+| **JD-009** | **P1** | Information Loss | Noise filtering was state-based and non-reentrant — valid content after noise section permanently dropped | Re-entrant by design: each section is an independent dict; filtering is a simple set membership check, not a stateful flag machine |
+| **JD-015** | **P3** | Generalization | `_filter_noise_sections` exact-match only — `"About Us - Our Story"` not filtered | `prefix_matching=True` in `detect_sections()` recognises prefix-decorated noise headers via configured aliases |
+
+### 9.3 Genuine Production Bug Fixed (Day 8)
+
+**File:** [`src/parsers/jd_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py)  
+**Function:** `parse_jd()` — `clean_jd` reconstruction loop
+
+**Root Cause:**  
+`detect_sections()` creates preamble sections (text before the first recognized section header) with:
+```python
+{"name": "preamble", "original_name": None, "text": "..."}
+```
+`parse_jd()` unconditionally appended `section["original_name"]` to `clean_jd`, inserting `None`. `_extract_role()` then evaluated:
+```python
+if ":" not in line:   # line is None → TypeError
+```
+causing `TypeError: argument of type 'NoneType' is not iterable` for every JD that did not start with a recognized section header.
+
+**Fix (minimal):**
+```python
+# Before:
+for section in clean_sections:
+    clean_jd.append(section["original_name"])   # None crash
+
+# After:
+for section in clean_sections:
+    if section["original_name"]:                # guard added
+        clean_jd.append(section["original_name"])
+```
+
+**Category:** Genuine production regression (not a stale test contract).
+
+### 9.4 Test Files Changed (Day 8 Migration)
+
+| Test File | Nature of Change |
+|---|---|
+| [`tests/parsers/test_jd_parser.py`](file:///d:/Projects/resume-intelligence-platform/tests/parsers/test_jd_parser.py) | All `_extract_skills()` calls migrated from `list[str]` to `list[dict]` section inputs. All `_filter_noise_sections()` calls migrated to structured section dicts with assertion on `section["name"]`. Removed duplicate stale `test_parse_jd` (expected list return). `test_extract_role_stops_at_noise_section` adapted to current architecture. `test_parse_jd` fixture updated to use multi-line section format matching the detector contract. Two new requirement-classification tests added. All 9 behavioral contracts preserved (known/unknown skills, case-insensitive, dedup, partial-word, C++/C, MySQL/SQL, multi-skill line, section-context requirement). |
+| [`tests/services/test_jd_service.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_jd_service.py) | `test_process_jd_text` migrated: full `result["jd"] == {...}` equality replaced with targeted key assertions. `skill_requirements` shape updated from `{line, requirement}` to `{skill, requirement}`. |
+| [`tests/services/test_resume_service_injestion.py`](file:///d:/Projects/resume-intelligence-platform/tests/services/test_resume_service_injestion.py) | All four `detect_sections` mocks updated to accept `section_headers=None, section_aliases=None, **kwargs` — compatible with the production call signature. |
+
+### 9.5 Test Suite Execution & Regression Results
+
+| Suite | Before Day 8 work | After Day 8 work |
+|---|---|---|
+| **Targeted suite** (4 files, 75 tests) | 40 passed, 35 failed | **75 passed, 0 failed** |
+| **Full pytest suite** | 390 passed, 35 failed | **427 passed, 0 failed** |
+
+- **Baseline progression:** 425 passed → **427 passed** (+2 new requirement-classification tests).
+- **Zero regressions** across the entire workspace.
+
+### 9.6 Contract Summary — Structured Section API
+
+The following contracts are now in force across the JD and resume pipelines:
+
+**`detect_sections(text, section_headers=None, section_aliases=None, prefix_matching=False)`**
+- Returns `list[dict]` where each dict is `{"name": str, "original_name": str | None, "text": str}`.
+- `original_name` is `None` for preamble sections (text before the first recognized header).
+- `prefix_matching=True` enables recognition of decorated headers (`"About Us - Our Story"`).
+
+**`_extract_skills(sections: list[dict]) -> tuple[list[str], list[dict]]`**
+- `sections` is a list of structured section dicts from `detect_sections()`.
+- Returns `(skills, skill_requirements)` where `skill_requirements` entries are `{"skill": str, "requirement": str}`.
+
+**`_filter_noise_sections(sections: list[dict]) -> list[dict]`**
+- Filters on `section["name"] not in NOISE_SECTIONS`.
+- `NOISE_SECTIONS = {"COMPANY_INFO", "EQUAL_OPPORTUNITY", "NOISE"}`.
+
+**`detect_sections()` mock contract (tests)**
+- Mocks must accept `text`, `section_headers=None`, `section_aliases=None`, and `**kwargs`.
+
+---

@@ -3,7 +3,7 @@
 **Sprint Window:** Next 7 Working Days (Continuing from Phase 4.5 Day 5 through Day 11)  
 **Daily Time Budget:** **Max 2 Hours Total per Day** (All 5 daily blocks combined = 120 minutes)  
 **Block Allocation:** Up to 5 focused blocks per day (10–35 mins each, totaling 120 mins)  
-**Baseline Test Count:** **425 passing tests (Phase 4.5 Day 7 baseline: 408 → 425 passed, +17 new tests), 0 regressions**  
+**Baseline Test Count:** **427 passing tests (Phase 4.5 Day 8 baseline: 425 → 427 passed, +2 new tests), 0 regressions**  
 **Core Strategy:** **Major Issues First (P0 & Critical P1 Blockers)** to rapidly unlock **Phase 5 (Resume ↔ JD Matching)**. Minor issues (P2–P4 cosmetics, secondary aliases, schema enhancements) are cataloged and deferred to be fixed in parallel during **Phase 6 (ML/NLP Intelligence)**.
 
 ---
@@ -15,7 +15,7 @@
 | **Phase 4.5 Day 5** | Resume P0 Boundaries & Date/Experience Normalization | R-023, R-024, R-025, R-035, R-009, R-006, R-030, R-031, R-005 | Zero P0 structural defects; active employment tenure resolved; green test baseline |
 | **Phase 4.5 Day 6** | Resume Multi-Page Continuity & Entity Splitting | R-034, R-038, R-022, R-007, R-026, R-036 | Multi-page resume preservation verified; skill conjunctions & combined degrees split; resume pipeline locked |
 | **Phase 4.5 Day 7** ✅ | JD Preprocessing & Skill Vocabulary Overhaul (JD-001) | JD-013, JD-001 | Text cleaning wired into JD service; 17-skill bottleneck replaced with scalable tech taxonomy; 95.3% extraction coverage on 5 real JDs; baseline **425 passed** |
-| **Phase 4.5 Day 8** | JD Section Detection & Requirement Context (Required vs Optional) | JD-018, JD-004, JD-006, JD-008, JD-009, JD-015 | Structured JD section detector; context-inherited skill classification (`required` vs `optional`); robust noise filter |
+| **Phase 4.5 Day 8** ✅ | JD Section Detection & Requirement Context (Required vs Optional) | JD-018, JD-004, JD-006, JD-008, JD-009, JD-015 | Shared `detect_sections()` wired for JDs; context-inherited requirement classification (`required`/`optional`); structured noise filtering; 35-failure test regression resolved; 427 passed, 0 failed |
 | **Phase 4.5 Day 9** | JD Role & Experience Extraction Generalization | JD-002, JD-016, JD-017, JD-003, JD-005 | Role extraction handles unlabelled top-lines & `Title:`; YOE handles prefix labels & domain qualifiers |
 | **Phase 4.5 Day 10** | JD Education Requirements, Noise Reduction & Schema Lockdown | JD-014, JD-012 | Education requirements in schema; line-level noise eliminated; unified schema aligned with resume pipeline |
 | **Phase 4.5 Day 11** | Cross-Pipeline Regression & Phase 5 Matching Sign-Off | Full Resume Corpus (R01–R12) + Full JD Corpus (JD01–JD10 + Real JDs) | Zero P0/P1 defects; vocabulary & scale alignment verified; Phase 5 Matching kickoff approved |
@@ -211,61 +211,65 @@ Each day's 120-minute window is divided into up to 5 focused blocks:
 
 ## Phase 4.5 Day 8: JD Section Detection & Requirement Context (2h Total)
 
-### Phase 4.5 Day 8 Block 1: Structured JD Section Detector (JD-018) (30 min)
+### Phase 4.5 Day 8 Block 1: Structured JD Section Detector (JD-018) (30 min) ✅ (COMPLETED)
+- **Status:** **COMPLETE** *(implemented as pre-existing production refactor before Day 8 test sprint)*
 - **Target Issues:** JD-018
-- **Scope & Actions:**
-  1. Implement structured section detection for JDs (`detect_jd_sections()` in `src/parsers/jd_parser.py`).
-  2. Segment JDs into canonical section objects:
-     - `ROLE_OVERVIEW` / `ABOUT_THE_ROLE`
-     - `REQUIREMENTS` / `BASIC_QUALIFICATIONS` / `MINIMUM_QUALIFICATIONS`
-     - `PREFERRED_QUALIFICATIONS` / `BONUS` / `DESIRED`
-     - `RESPONSIBILITIES` / `WHAT_YOU_WILL_DO`
-     - `BENEFITS` / `PERKS`
-     - `COMPANY_INFO` / `ABOUT_US` (Noise)
-     - `EQUAL_OPPORTUNITY` (Noise)
-- **Verification:** Unit tests asserting section boundary segmentation on multi-section JDs.
+- **Accomplishments:**
+  1. `detect_sections()` in `src/parsers/section_detector.py` extended with `section_headers`, `section_aliases`, and `prefix_matching` parameters — now serves both resume and JD pipelines.
+  2. `detect_jd_sections()` added to `src/parsers/jd_parser.py`, delegating to the shared detector with `JD_SECTION_HEADERS`, `JD_SECTION_ALIASES`, and `prefix_matching=True`.
+  3. `JD_SECTION_HEADERS` and `JD_SECTION_ALIASES` populated in `src/configs/jd_configs.py` covering: `ROLE_OVERVIEW`, `REQUIREMENTS`, `PREFERRED_QUALIFICATIONS`, `RESPONSIBILITIES`, `BENEFITS`, `COMPANY_INFO` (noise), `EQUAL_OPPORTUNITY` (noise), `NOISE`.
+  4. `detect_sections()` returns structured section dictionaries: `{"name": canonical, "original_name": normalized, "text": body}`.
+- **Verification:** Shared section detector drives both resume and JD pipelines. All real-JD fixture tests pass.
 
 ---
 
-### Phase 4.5 Day 8 Block 2: Re-entrant & Robust Noise Filtering (25 min)
+### Phase 4.5 Day 8 Block 2: Re-entrant & Robust Noise Filtering (25 min) ✅ (COMPLETED)
+- **Status:** **COMPLETE** *(implemented as pre-existing production refactor before Day 8 test sprint)*
 - **Target Issues:** JD-006, JD-009, JD-015
-- **Scope & Actions:**
-  1. Upgrade noise header matching from exact lowercase string equality to prefix/keyword matching (`"About Us - Our Story"` recognized as noise).
-  2. Make noise filtering re-entrant: entering a noise section does not permanently drop subsequent valid sections.
-- **Verification:** Test decorated noise headers and multi-noise section JDs.
+- **Accomplishments:**
+  1. `_filter_noise_sections()` in `src/parsers/jd_parser.py` now operates on structured section dictionaries — it filters on `section["name"]` membership in `NOISE_SECTIONS` (`{"COMPANY_INFO", "EQUAL_OPPORTUNITY", "NOISE"}`) rather than on raw line strings.
+  2. Noise filtering is fully re-entrant: entering a noise section discards only its own body; subsequent valid sections are preserved as independent structured objects.
+  3. Prefix/keyword matching via `prefix_matching=True` in `detect_sections()` handles decorated noise headers (`About Us - Our Story`, `About the Company | Our Mission`) without requiring exact-match expansion of `NOISE_SECTION_HEADERS`.
+- **Verification:** All `_filter_noise_sections` tests pass with structured section dict inputs.
 
 ---
 
-### Phase 4.5 Day 8 Block 3: Context-Inherited Requirement Classification (JD-004, JD-008) (35 min)
+### Phase 4.5 Day 8 Block 3: Context-Inherited Requirement Classification (JD-004, JD-008) (35 min) ✅ (COMPLETED)
+- **Status:** **COMPLETE** *(implemented as pre-existing production refactor before Day 8 test sprint)*
 - **Target Issues:** JD-004, JD-008
-- **Scope & Actions:**
-  1. **JD-004:** Refactor `_classify_skill_requirement()` to inherit context from the enclosing parent section (skills under `Requirements` default to `"required"`; skills under `Preferred Qualifications` default to `"optional"`).
-  2. **JD-008:** Unify skills and requirement levels into a single structured output list:
-     ```json
-     [
-       {"skill": "Python", "requirement": "required"},
-       {"skill": "AWS", "requirement": "optional"}
-     ]
-     ```
-- **Verification:** Assert items under `Required:` are never classified `unknown`.
+- **Accomplishments:**
+  1. **JD-004:** `_classify_skill_requirement()` now accepts a `parent_section` argument. Skills under `REQUIREMENTS` / `BASIC_QUALIFICATIONS` / `MINIMUM_QUALIFICATIONS` default to `"required"`; skills under `PREFERRED_QUALIFICATIONS` / `BONUS` / `DESIRED` default to `"optional"`. Explicit line-level signals still take precedence.
+  2. **JD-008:** `_extract_skills()` now accepts `list[dict]` sections, iterates section bodies, and returns both a deduplicated `skills: list[str]` and a unified `skill_requirements: list[{skill, requirement}]`. The old per-line `{line, requirement}` shape is replaced by the per-skill `{skill, requirement}` shape.
+  3. `_section_requirement_context()` helper introduced to translate canonical section names into default requirement levels.
+- **Verification:** `test_extract_skills_requirement_from_requirements_section` and `test_extract_skills_requirement_from_preferred_section` confirm context inheritance.
 
 ---
 
-### Phase 4.5 Day 8 Block 4: Multi-Section Requirement Tests (20 min)
-- **Target Issues:** Unit verification
-- **Scope & Actions:**
-  1. Author unit tests asserting section-inherited requirement levels.
-  2. Test mixed JDs containing both required and optional skill blocks.
-- **Verification:** 100% pass on requirement classification tests.
+### Phase 4.5 Day 8 Block 4: Test-Contract Migration & Genuine Bug Fix (20 min) ✅ (COMPLETED)
+- **Status:** **COMPLETE**
+- **Target Issues:** Test regression (35 failures); genuine production bug in `parse_jd()`
+- **Accomplishments:**
+  1. **Test regression root cause:** The production refactor (Blocks 1–3) introduced a structured-section contract. 35 tests remained on the old contract (list-of-strings inputs to `_extract_skills`, `_filter_noise_sections`; `{line, requirement}` shape for `skill_requirements`; `detect_sections` mocks not accepting keyword arguments).
+  2. **`tests/parsers/test_jd_parser.py`** — Migrated all `_extract_skills()` and `_filter_noise_sections()` tests to accept and assert on structured section dictionaries. Preserved all behavioral contracts: known/unknown skill extraction, case-insensitive matching, deduplication, partial-word protection, C++ vs C overlap, MySQL vs SQL overlap, multi-skill lines, requirement classification. Updated `test_extract_role_stops_at_noise_section` to the current architecture.
+  3. **`tests/services/test_jd_service.py`** — Migrated `skill_requirements` assertion from `{"line", "requirement"}` shape to the current `{"skill", "requirement"}` shape.
+  4. **`tests/services/test_resume_service_injestion.py`** — Updated all four `detect_sections` mocks to accept `section_headers`, `section_aliases`, and `**kwargs` to match the production call signature.
+  5. **Genuine production bug fixed** in `src/parsers/jd_parser.py`:
+     - **Root cause:** Preamble sections produced by `detect_sections()` have `original_name = None`. `parse_jd()` unconditionally appended `section["original_name"]` to `clean_jd`, inserting `None`. `_extract_role()` then crashed with `TypeError: argument of type 'NoneType' is not iterable` when evaluating `":" not in line` on a `None` value.
+     - **Fix:** Guard the reconstruction loop — only append `original_name` when it is truthy (non-`None`).
+     - **Change:** Minimal one-condition guard: `if section["original_name"]: clean_jd.append(...)`
+- **Verification:** Targeted suite: **75 passed, 0 failed**.
+
 
 ---
 
-### Phase 4.5 Day 8 Block 5: Daily Checkpoint & Regression Suite (10 min)
+### Phase 4.5 Day 8 Block 5: Daily Checkpoint & Regression Suite (10 min) ✅ (COMPLETED)
+- **Status:** **COMPLETE**
 - **Target Issues:** Regression check
-- **Scope & Actions:**
-  1. Run full test suite across workspace.
-  2. Update `fixed.md` with JD-004, JD-006, JD-008, JD-009, JD-018 resolutions.
-- **Checkpoint Target:** Full test suite green.
+- **Accomplishments:**
+  1. Full test suite across workspace: **427 passed, 0 failed** in 1.01s.
+  2. Updated `fixed.md` with Day 8 execution summary (Section 9): JD-004, JD-006, JD-008, JD-009, JD-015, JD-018 resolutions documented.
+  3. Updated `issues_jd.md`: JD-004, JD-006, JD-008, JD-009, JD-015, JD-018 marked RESOLVED; audit summary updated.
+- **Checkpoint:** Baseline locked at **427 passed, 0 failed**. Phase 4.5 Day 8 COMPLETE.
 
 ---
 

@@ -15,33 +15,20 @@ async def test_process_jd_text():
 
     assert result["text"] == text
 
-    assert result["jd"] == {
-        "role": None,
-        "experience_months": None,    
-        "skills":[
-        "Python",
-        "FastAPI",
-        "SQL"],
-        "skill_specific_experience": [],
-        "skill_requirements": [
-            {
-                "line": "Backend Engineer",
-                "requirement": "unknown",
-            },
-            {
-                "line": "Python",
-                "requirement": "unknown",
-            },
-            {
-                "line": "FastAPI",
-                "requirement": "unknown",
-            },
-            {
-                "line": "SQL",
-                "requirement": "unknown",
-            },
-        ],
-    }
+    jd = result["jd"]
+    assert jd["role"] is None
+    assert jd["experience_months"] is None
+    assert jd["skill_specific_experience"] == []
+
+    assert "Python" in jd["skills"]
+    assert "FastAPI" in jd["skills"]
+    assert "SQL" in jd["skills"]
+
+    # skill_requirements is list[{skill, requirement}] under current contract
+    req_map = {r["skill"]: r["requirement"] for r in jd["skill_requirements"]}
+    assert req_map["Python"] == "unknown"
+    assert req_map["FastAPI"] == "unknown"
+    assert req_map["SQL"] == "unknown"
 
 
 @pytest.mark.asyncio

@@ -4,15 +4,20 @@ from ..configs.jd_configs import (
     ROLE_KEYWORDS,
     REQUIRED_SKILL_KEYWORDS,
     OPTIONAL_SKILL_KEYWORDS,
-    NOISE_SECTION_HEADERS,
     JD_SECTION_HEADERS,
+    JD_SECTION_ALIASES,
+    NOISE_SECTIONS,
 )
+
 from ..configs.skill_configs import KNOWN_SKILLS
+
 from ..parsers.skills_parser import (
     build_skill_patterns,
     is_skill_candidate,
     match_known_skill,
 )
+
+from ..parsers.section_detector import detect_sections
 
 
 SKILL_PATTERN = "|".join(
@@ -67,19 +72,6 @@ YOE_PATTERN = re.compile(
 
 
 # ------------------------------------------------------
-# Skill-section headers
-# ------------------------------------------------------
-
-SKILL_SECTION_HEADERS = {
-    "required skills",
-    "preferred skills",
-    "nice to have",
-    "technical skills",
-    "skills",
-}
-
-
-# ------------------------------------------------------
 # Words that must never become unknown skills
 # ------------------------------------------------------
 
@@ -127,8 +119,6 @@ UNKNOWN_SKILL_STOPWORDS = {
     "role",
     "position",
     "title",
-
-    # Common JD role/domain words.
     "backend",
     "frontend",
     "fullstack",
@@ -157,15 +147,31 @@ def _extract_jd(text: str) -> list[str]:
     Normalize raw JD text into non-empty stripped lines.
     """
 
-    extracted_jd = []
+    return [
+        line.strip()
+        for line in text.split("\n")
+        if line.strip()
+    ]
 
-    for line in text.split("\n"):
-        line = line.strip()
 
-        if line:
-            extracted_jd.append(line)
+# ------------------------------------------------------
+# JD section detection
+# ------------------------------------------------------
 
-    return extracted_jd
+def detect_jd_sections(text: str) -> list[dict]:
+    """
+    Detect and canonicalize JD sections.
+
+    Uses the shared section detector rather than maintaining
+    a separate JD-specific segmentation implementation.
+    """
+
+    return detect_sections(
+        text,
+        section_headers=JD_SECTION_HEADERS,
+        section_aliases=JD_SECTION_ALIASES,
+        prefix_matching=True,
+    )
 
 
 # ------------------------------------------------------
@@ -175,14 +181,6 @@ def _extract_jd(text: str) -> list[str]:
 def _extract_role(jd: list[str]) -> str | None:
     """
     Extract a role from configured role-keyword lines.
-
-    Example:
-
-        Job Title: Senior Backend / ML Engineer
-
-    returns:
-
-        Senior Backend / ML Engineer
     """
 
     for line in jd:
@@ -195,14 +193,6 @@ def _extract_role(jd: list[str]) -> str | None:
             continue
 
         role = role.strip()
-
-        for section in NOISE_SECTION_HEADERS | JD_SECTION_HEADERS:
-            role = re.split(
-                rf"\b{re.escape(section)}\b",
-                role,
-                maxsplit=1,
-                flags=re.IGNORECASE,
-            )[0].strip()
 
         return role or None
 
@@ -245,9 +235,6 @@ def _extract_experience(jd: list[str]) -> int | None:
 def _extract_skill_specific_experience(
     jd: list[str],
 ) -> list[dict]:
-    """
-    Extract experience tied directly to a known skill.
-    """
 
     skill_yoe = []
 
@@ -277,47 +264,55 @@ def _extract_skill_specific_experience(
 
 
 # ------------------------------------------------------
-# Noise-section filtering
+# Noise filtering
 # ------------------------------------------------------
 
 def _filter_noise_sections(
-    jd: list[str],
-) -> list[str]:
+    sections: list[dict],
+) -> list[dict]:
     """
-    Remove lines belonging to configured noise sections.
+    Remove canonical noise sections.
 
-    Example:
+    Filtering operates on already-segmented sections,
+    making the operation re-entrant.
 
-        About the company
-        We build amazing products.
-
-    is removed until another JD section begins.
+    A noise section therefore cannot permanently consume
+    all following JD content.
     """
 
-    clean_jd = []
-    noise_mode = False
+    return [
+        section
+        for section in sections
+        if section["name"] not in NOISE_SECTIONS
+    ]
 
-    for line in jd:
-        normalized_line = (
-            line.lower()
-            .strip()
-            .rstrip(":")
-        )
 
-        if normalized_line in NOISE_SECTION_HEADERS:
-            noise_mode = True
-            continue
+# ------------------------------------------------------
+# Requirement context
+# ------------------------------------------------------
 
-        if noise_mode:
-            if normalized_line in JD_SECTION_HEADERS:
-                noise_mode = False
-                clean_jd.append(line)
+def _section_requirement_context(
+    section_name: str | None,
+) -> str:
+    """
+    Determine default requirement level from the parent section.
+    """
 
-            continue
+    if section_name in {
+        "REQUIREMENTS",
+        "BASIC_QUALIFICATIONS",
+        "MINIMUM_QUALIFICATIONS",
+    }:
+        return "required"
 
-        clean_jd.append(line)
+    if section_name in {
+        "PREFERRED_QUALIFICATIONS",
+        "BONUS",
+        "DESIRED",
+    }:
+        return "optional"
 
-    return clean_jd
+    return "unknown"
 
 
 # ------------------------------------------------------
@@ -326,26 +321,35 @@ def _filter_noise_sections(
 
 def _classify_skill_requirement(
     line: str,
+    parent_section: str | None = None,
 ) -> str:
     """
     Classify a JD line as required, optional, or unknown.
+
+    Explicit line-level signals take precedence over the
+    enclosing section context.
     """
 
     normalized_line = line.lower().strip()
 
+    # Explicit required signals.
     if any(
         keyword in normalized_line
         for keyword in REQUIRED_SKILL_KEYWORDS
     ):
         return "required"
 
+    # Explicit optional signals.
     if any(
         keyword in normalized_line
         for keyword in OPTIONAL_SKILL_KEYWORDS
     ):
         return "optional"
 
-    return "unknown"
+    # Inherit parent section context.
+    return _section_requirement_context(
+        parent_section
+    )
 
 
 # ------------------------------------------------------
@@ -359,15 +363,16 @@ def _is_skill_section_header(line: str) -> bool:
         .lower()
     )
 
-    return normalized in SKILL_SECTION_HEADERS
+    return normalized in {
+        "required skills",
+        "preferred skills",
+        "nice to have",
+        "technical skills",
+        "skills",
+    }
 
 
 def _is_role_line(line: str) -> bool:
-    """
-    Prevent role/title metadata from being interpreted
-    as an unknown skill.
-    """
-
     if ":" not in line:
         return False
 
@@ -383,11 +388,6 @@ def _is_role_line(line: str) -> bool:
 def _resolve_known_skill_matches(
     matches: list[dict],
 ) -> list[dict]:
-    """
-    Resolve overlapping known-skill matches.
-
-    The longest overlapping match wins.
-    """
 
     matches.sort(
         key=lambda item: (
@@ -433,39 +433,8 @@ def _extract_unknown_skill_matches(
     line: str,
     skill_patterns: list[tuple[str, re.Pattern]],
 ) -> list[dict]:
-    """
-    Extract conservative unknown technology-like skill candidates.
-
-    Unknown skills may be:
-        LangChain
-        OpenTelemetry
-        Jupyter
-        FAISS
-        NextGenAI
-
-    Ordinary JD prose is filtered using UNKNOWN_SKILL_STOPWORDS.
-
-    Known skills always take precedence, and derivatives such as
-    Pythonic are rejected when Python is a configured known skill.
-    """
 
     matches = []
-
-    # --------------------------------------------------
-    # Candidate pattern
-    # --------------------------------------------------
-    #
-    # This intentionally allows normal capitalized technology
-    # names such as:
-    #
-    #   Jupyter
-    #   LangChain
-    #   OpenTelemetry
-    #   FAISS
-    #
-    # We do NOT require CamelCase anymore because legitimate
-    # skills can be single capitalized words.
-    #
 
     pattern = re.compile(
         r"""
@@ -492,40 +461,17 @@ def _extract_unknown_skill_matches(
 
         normalized = candidate.casefold()
 
-        # --------------------------------------------------
-        # Generic prose / JD words
-        # --------------------------------------------------
-
         if normalized in UNKNOWN_SKILL_STOPWORDS:
             continue
 
-        # --------------------------------------------------
-        # Basic candidate validation
-        # --------------------------------------------------
-
         if not is_skill_candidate(candidate):
             continue
-
-        # --------------------------------------------------
-        # Known skills always win
-        # --------------------------------------------------
 
         if match_known_skill(
             candidate,
             skill_patterns,
         ):
             continue
-
-        # --------------------------------------------------
-        # Reject derivatives of known skills.
-        #
-        # Examples:
-        #
-        # Pythonic
-        # PythonDeveloper
-        #
-        # But don't reject short known skills such as C.
-        # --------------------------------------------------
 
         if any(
             normalized.startswith(skill)
@@ -544,141 +490,150 @@ def _extract_unknown_skill_matches(
         )
 
     return matches
+
+
 # ------------------------------------------------------
 # Complete JD skill extraction
 # ------------------------------------------------------
 
-def _extract_skills(jd: list[str]) -> list[str]:
+def _extract_skills(
+    sections: list[dict],
+) -> tuple[list[str], list[dict]]:
     """
-    Extract skills from JD text.
+    Extract skills from structured JD sections.
 
-    Contract:
-    - known skills use configured vocabulary names
-    - matching is case-insensitive
-    - unknown technology-like skills are preserved
-    - output follows source order
-    - duplicates are case-insensitive
-    - overlapping known skills prefer the longest match
-    - role/title metadata is not treated as a skill
-    - section headers are not treated as skills
+    Returns:
+
+        skills:
+            Flat list of skill names.
+
+        skill_requirements:
+            Structured skill + requirement objects.
     """
 
     skill_patterns = build_skill_patterns()
 
     all_matches = []
 
-    for line_number, raw_line in enumerate(jd):
-        line = raw_line.strip()
+    for section in sections:
+        section_name = section["name"]
 
-        if not line:
+        # Noise should never contribute skills.
+        if section_name in NOISE_SECTIONS:
             continue
 
-        # Section headers are metadata, not skills.
-        if _is_skill_section_header(line):
-            continue
+        section_text = section["text"]
 
-        # Role metadata is not a skill.
-        if _is_role_line(line):
-            continue
+        for line_number, raw_line in enumerate(
+            section_text.split("\n")
+        ):
+            line = raw_line.strip()
 
-        # --------------------------------------------------
-        # Known skills
-        # --------------------------------------------------
+            if not line:
+                continue
 
-        known_matches = []
+            if _is_skill_section_header(line):
+                continue
 
-        for skill, pattern in skill_patterns:
-            for match in pattern.finditer(line):
-                known_matches.append(
+            if _is_role_line(line):
+                continue
+
+            known_matches = []
+
+            for skill, pattern in skill_patterns:
+                for match in pattern.finditer(line):
+                    known_matches.append(
+                        {
+                            "skill": skill,
+                            "start": match.start(),
+                            "end": match.end(),
+                            "known": True,
+                        }
+                    )
+
+            known_matches = _resolve_known_skill_matches(
+                known_matches
+            )
+
+            unknown_matches = (
+                _extract_unknown_skill_matches(
+                    line,
+                    skill_patterns,
+                )
+            )
+
+            filtered_unknown_matches = []
+
+            for unknown in unknown_matches:
+                overlaps_known = any(
+                    unknown["start"] < known["end"]
+                    and unknown["end"] > known["start"]
+                    for known in known_matches
+                )
+
+                if not overlaps_known:
+                    filtered_unknown_matches.append(
+                        unknown
+                    )
+
+            line_matches = (
+                known_matches
+                + filtered_unknown_matches
+            )
+
+            line_matches.sort(
+                key=lambda item: (
+                    item["start"],
+                    item["end"],
+                )
+            )
+
+            requirement = _classify_skill_requirement(
+                line,
+                parent_section=section_name,
+            )
+
+            for match in line_matches:
+                all_matches.append(
                     {
-                        "skill": skill,
-                        "start": match.start(),
-                        "end": match.end(),
-                        "known": True,
+                        "line_number": line_number,
+                        "start": match["start"],
+                        "skill": match["skill"],
+                        "requirement": requirement,
                     }
                 )
 
-        known_matches = _resolve_known_skill_matches(
-            known_matches
-        )
-
-        # --------------------------------------------------
-        # Unknown skills
-        # --------------------------------------------------
-
-        unknown_matches = _extract_unknown_skill_matches(
-            line,
-            skill_patterns,
-        )
-
-        # --------------------------------------------------
-        # Known vocabulary always wins over unknown
-        # candidates.
-        # --------------------------------------------------
-
-        filtered_unknown_matches = []
-
-        for unknown in unknown_matches:
-            overlaps_known = any(
-                unknown["start"] < known["end"]
-                and unknown["end"] > known["start"]
-                for known in known_matches
-            )
-
-            if not overlaps_known:
-                filtered_unknown_matches.append(
-                    unknown
-                )
-
-        # --------------------------------------------------
-        # Merge in source order
-        # --------------------------------------------------
-
-        line_matches = (
-            known_matches
-            + filtered_unknown_matches
-        )
-
-        line_matches.sort(
-            key=lambda item: (
-                item["start"],
-                item["end"],
-            )
-        )
-
-        for match in line_matches:
-            all_matches.append(
-                (
-                    line_number,
-                    match["start"],
-                    match["skill"],
-                )
-            )
-
-    # ------------------------------------------------------
-    # Global ordering + case-insensitive deduplication
-    # ------------------------------------------------------
-
+    # Source order.
     all_matches.sort(
         key=lambda item: (
-            item[0],
-            item[1],
+            item["line_number"],
+            item["start"],
         )
     )
 
     seen = set()
     skills = []
+    skill_requirements = []
 
-    for _, _, skill in all_matches:
+    for match in all_matches:
+        skill = match["skill"]
         key = skill.casefold()
 
         if key in seen:
             continue
 
         seen.add(key)
+
         skills.append(skill)
 
-    return skills
+        skill_requirements.append(
+            {
+                "skill": skill,
+                "requirement": match["requirement"],
+            }
+        )
+
+    return skills, skill_requirements
 
 
 # ------------------------------------------------------
@@ -688,11 +643,6 @@ def _extract_skills(jd: list[str]) -> list[str]:
 def _resolve_skill_overlaps(
     matches: list[dict],
 ) -> list[dict]:
-    """
-    Public/tested overlap resolver.
-
-    Matches on different lines never overlap.
-    """
 
     matches = sorted(
         matches,
@@ -749,33 +699,77 @@ def parse_jd(text: str) -> dict:
             ↓
         line extraction
             ↓
-        noise filtering
+        shared section detection
+            ↓
+        noise section removal
             ↓
         role / experience / skills
             ↓
         skill-specific experience
             ↓
-        requirement classification
+        contextual requirement classification
     """
 
     jd = _extract_jd(text)
 
-    jd = _filter_noise_sections(jd)
+    # ----------------------------------------------
+    # Section detection
+    # ----------------------------------------------
+
+    sections = detect_jd_sections(
+        "\n".join(jd)
+    )
+
+    # ----------------------------------------------
+    # Noise filtering
+    # ----------------------------------------------
+
+    clean_sections = _filter_noise_sections(
+        sections
+    )
+
+    # ----------------------------------------------
+    # Reconstruct valid JD lines
+    # ----------------------------------------------
+
+    clean_jd = []
+
+    for section in clean_sections:
+        if section["original_name"]:
+            clean_jd.append(
+                section["original_name"]
+            )
+
+        clean_jd.extend(
+            line.strip()
+            for line in section["text"].split("\n")
+            if line.strip()
+        )
+
+    # ----------------------------------------------
+    # Extraction
+    # ----------------------------------------------
+
+    skills, skill_requirements = _extract_skills(
+        clean_sections
+    )
 
     return {
-        "role": _extract_role(jd),
-        "experience_months": _extract_experience(jd),
-        "skills": _extract_skills(jd),
-        "skill_specific_experience": (
-            _extract_skill_specific_experience(jd)
+        "role": _extract_role(clean_jd),
+
+        "experience_months": _extract_experience(
+            clean_jd
         ),
-        "skill_requirements": [
-            {
-                "line": line,
-                "requirement": _classify_skill_requirement(
-                    line
-                ),
-            }
-            for line in jd
-        ],
+
+        "sections": clean_sections,
+
+        "skills": skills,
+
+        "skill_requirements": skill_requirements,
+
+        "skill_specific_experience": (
+            _extract_skill_specific_experience(
+                clean_jd
+            )
+        ),
     }
