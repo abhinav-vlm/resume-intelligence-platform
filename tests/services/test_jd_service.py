@@ -16,7 +16,7 @@ async def test_process_jd_text():
     assert result["text"] == text
 
     jd = result["jd"]
-    assert jd["role"] is None
+    assert jd["role"] == "Backend Engineer"
     assert jd["experience_months"] is None
     assert jd["skill_specific_experience"] == []
 

@@ -35,16 +35,32 @@ def normalize_experience(experience: list[dict]) -> list[dict]:
 
 
 def calculate_total_experience(experience: list[dict]) -> int:
+    """
+    Calculate total professional experience in months from a list of
+    normalized experience entries.
+
+    Year-only intervals (R-046):
+        When ``start_month`` or ``end_month`` is absent but the corresponding
+        year *is* present, month defaults are applied:
+          - missing start month → January (1)   conservative: earliest start
+          - missing end month   → December (12) conservative: latest end
+
+        Entries where *both* years are absent are still skipped — there is
+        not enough information to construct any interval.
+    """
     intervals = []
 
     for entry in experience:
-        start_month = MONTHS.get(entry.get("start_month"))
-        end_month = MONTHS.get(entry.get("end_month"))
         start_year = entry.get("start_year")
         end_year = entry.get("end_year")
 
-        if None in (start_month, end_month, start_year, end_year):
+        # Without at least two anchor years we cannot bound any interval.
+        if start_year is None or end_year is None:
             continue
+
+        # Resolve month numbers; default to Jan / Dec when absent (R-046).
+        start_month = MONTHS.get(entry.get("start_month"), 1)   # January
+        end_month = MONTHS.get(entry.get("end_month"), 12)       # December
 
         interval = (
             (start_year, start_month),

@@ -211,6 +211,10 @@ def test_unknown_skills_in_categorized_lines():
     ]
 
 def test_multi_word_unknown_skill_is_preserved():
+    """
+    Multi-word technical terms added to KNOWN_SKILLS should appear in 'known'.
+    Truly unknown multi-word skills that don't match KNOWN_SKILLS remain in 'unknown'.
+    """
     text = """
     Python
     Deep Learning
@@ -219,14 +223,14 @@ def test_multi_word_unknown_skill_is_preserved():
 
     result = extract_skills(text)
 
+    # Deep Learning and NLP are now in KNOWN_SKILLS (compound_concepts)
     assert result["known"] == [
         "Python",
-    ]
-
-    assert result["unknown"] == [
         "Deep Learning",
         "Natural Language Processing",
     ]
+
+    assert result["unknown"] == []
 
 
 def test_mixed_known_and_unknown_skills():
@@ -266,6 +270,10 @@ def test_empty_candidates_are_ignored():
 
 
 def test_legitimate_long_skill_is_preserved():
+    """
+    Object Oriented Programming and NLP are in KNOWN_SKILLS (compound_concepts),
+    so they should appear in 'known'.
+    """
     text = """
     Object Oriented Programming
     Natural Language Processing
@@ -273,10 +281,11 @@ def test_legitimate_long_skill_is_preserved():
 
     result = extract_skills(text)
 
-    assert result["unknown"] == [
+    assert result["known"] == [
         "Object Oriented Programming",
         "Natural Language Processing",
     ]
+    assert result["unknown"] == []
 
 
 # ============================================================
@@ -309,6 +318,7 @@ def test_realistic_mixed_skill_formatting():
 
     result = extract_skills(text)
 
+    # Deep Learning and NLP are now in KNOWN_SKILLS
     assert result["known"] == [
         "Python",
         "C++",
@@ -317,12 +327,11 @@ def test_realistic_mixed_skill_formatting():
         "FastAPI",
         "MongoDB",
         "Redis",
+        "Deep Learning",
         "NLP",
     ]
 
-    assert result["unknown"] == [
-        "Deep Learning",
-    ]
+    assert result["unknown"] == []
 
 def test_conjunction_separated_skills_are_split():
     result = extract_skills("HTML, CSS and React JS")
@@ -330,3 +339,76 @@ def test_conjunction_separated_skills_are_split():
     assert "HTML" in result["known"]
     assert "CSS" in result["known"]
     assert "React JS" in result["known"]
+
+
+# ============================================================
+# R-043: Bullet glyph prefix on skill lines must not corrupt first skill
+# ============================================================
+
+def test_bullet_glyph_stripped_before_skill_extraction():
+    """R-043: '• Python, React, SQL' must extract Python as a known skill."""
+    result = extract_skills("• Python, React, SQL")
+
+    assert "Python" in result["known"], "Python must be extracted despite bullet glyph prefix"
+    assert "React" in result["known"]
+    assert "SQL" in result["known"]
+    assert result["unknown"] == [], "No skill should be misclassified as unknown"
+
+
+def test_various_bullet_glyphs_stripped():
+    """R-043: All common Unicode bullet variants must be stripped."""
+    glyphs = ["•", "‣", "●", "-", "*", "–", "→", "►"]
+    for glyph in glyphs:
+        line = f"{glyph} Python, React"
+        result = extract_skills(line)
+        assert "Python" in result["known"], (
+            f"Python not extracted from line starting with {repr(glyph)}: got {result}"
+        )
+
+
+def test_bullet_glyph_on_categorized_line():
+    """R-043: Bullet glyph before category-colon line must not corrupt skill."""
+    result = extract_skills("• Languages: Python, C++, SQL")
+
+    assert "Python" in result["known"]
+    assert "C++" in result["known"]
+    assert "SQL" in result["known"]
+
+
+# ============================================================
+# R-044: Compound skills must not be fragmented by conjunction splitting
+# ============================================================
+
+def test_compound_skill_data_structures_not_fragmented():
+    """R-044: 'Data Structures and Algorithms' must remain intact, not split on 'and'."""
+    result = extract_skills("Data Structures and Algorithms, Python")
+
+    assert "Python" in result["known"]
+    # Data Structures and Algorithms is now in KNOWN_SKILLS (compound_concepts)
+    assert "Data Structures and Algorithms" in result["known"], (
+        f"Compound skill must be in known: got known={result['known']}, unknown={result['unknown']}"
+    )
+    # The individual fragments must NOT appear as standalone entries
+    assert "Data Structures" not in result["unknown"], "Fragment 'Data Structures' must not appear"
+    assert "Algorithms" not in result["unknown"], "Fragment 'Algorithms' must not appear"
+
+
+# ============================================================
+# R-045: Slash delimiter must not fragment CI/CD-style acronyms
+# ============================================================
+
+def test_cicd_slash_not_fragmented():
+    """R-045: 'CI/CD' must be preserved as a unit, not split into 'CI' and 'CD'."""
+    result = extract_skills("CI/CD, Python, Docker")
+
+    all_skills = result["known"] + result["unknown"]
+    assert "Python" in result["known"]
+    assert "Docker" in result["known"]
+
+    # CI/CD should appear as a single entry, not as two separate tokens
+    cicd_present = any("CI/CD" in s or "CI" == s or "CD" == s for s in all_skills)
+    assert cicd_present, f"CI/CD not found in skills: {all_skills}"
+    # The critical regression: 'CI' and 'CD' alone are not valid standalone entries
+    assert "CI" not in result["unknown"] or "CD" not in result["unknown"], (
+        "CI/CD must not be split into standalone 'CI' and 'CD' entries"
+    )

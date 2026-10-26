@@ -2054,10 +2054,12 @@ Add common premier institution acronyms and designations: `IISER`, `IIT`, `NIT`,
 
 - **ID:** R-043
 - **Title:** Skills parser leaves bullet glyph attached to first skill token on lines without colons
-- **Status:** OPEN / AUDIT IDENTIFIED
+- **Status:** FIXED
 - **Severity:** P0
 - **Category:** Information Loss / Delimiter Boundary
 - **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+- **Fix:** Stripped `_BULLET_PREFIX_RE` in `src/parsers/skills_parser.py` before candidate splitting.
+- **Validation:** `tests/parsers/test_skills_parser.py` (unit tests asserting bullet-prefixed skills are stripped and resolved).
 
 #### Observed Behavior
 When a resume formats skills as a bulleted list without category headers or colons (e.g. `• Python, Java and C++` or `• Python`), `extract_skill_candidates` does not strip leading bullet characters (`•`, `-`, `*`, `‣`, `●`). The first candidate retains the bullet (e.g. `"• Python"`). In `match_known_skill()`, `pattern.fullmatch("• Python")` fails, dropping the known skill into `unknown_candidates`.
@@ -2087,10 +2089,12 @@ Strip bullet prefixes `("•", "-", "*", "‣", "●")` and whitespace from `val
 
 - **ID:** R-044
 - **Title:** Skills parser splits legitimate multi-word skills containing conjunction "and"
-- **Status:** OPEN / AUDIT IDENTIFIED
+- **Status:** FIXED
 - **Severity:** P1
 - **Category:** Tokenization / Boundary Handling
 - **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+- **Fix:** Added multi-word compounds containing " and " (e.g. `Data Structures and Algorithms`) to `KNOWN_SKILLS` and protected them prior to delimiter splitting.
+- **Validation:** `tests/parsers/test_skills_parser.py`.
 
 #### Observed Behavior
 The conjunction splitting regex `\s+and\s+` splits any occurrence of `" and "`, including inside established compound skill names such as `Data Structures and Algorithms`.
@@ -2117,10 +2121,12 @@ Protect known multi-word phrases or prioritize phrase lookup before splitting on
 
 - **ID:** R-045
 - **Title:** Skills parser splits slash-delimited acronym skills (e.g. CI/CD)
-- **Status:** OPEN / AUDIT IDENTIFIED
+- **Status:** FIXED
 - **Severity:** P1
 - **Category:** Tokenization / Delimiter Collision
 - **Observed in:** `skills_parser.py` (`extract_skill_candidates`)
+- **Fix:** Guarded slash-delimited acronym skills (e.g. `CI/CD`) prior to splitting on `/`.
+- **Validation:** `tests/parsers/test_skills_parser.py`.
 
 #### Observed Behavior
 Splitting on `/` divides compound acronyms like `CI/CD` or `TCP/IP` into `CI` and `CD` or `TCP` and `IP`.
@@ -2147,10 +2153,12 @@ Protect recognized slash-containing skill tokens (`CI/CD`, `TCP/IP`) or only spl
 
 - **ID:** R-046
 - **Title:** `calculate_total_experience` skips year-only and year-to-Present tenures, calculating 0 months total experience
-- **Status:** OPEN / AUDIT IDENTIFIED
+- **Status:** FIXED
 - **Severity:** P0
 - **Category:** Calculation Error / Normalization
 - **Observed in:** `experience_normalizer.py` (`calculate_total_experience`)
+- **Fix:** In `src/normalizers/experience_normalizer.py`, defaulted missing `start_month` to January (1) and missing `end_month` to December (12) when anchor years exist.
+- **Validation:** `tests/normalizers/test_experience_normalizer.py`.
 
 #### Observed Behavior
 `calculate_total_experience` contains:
@@ -2275,17 +2283,17 @@ Segment education blocks upon encountering an institution keyword OR degree keyw
 | **R-040** | P2 | Keyword Cov | **OPEN** | — | Institution detection misses premier national institutes (`IISER`) |
 | **R-041** | P1 | Generalization| **MIGRATED**| issues_jd.md | JD parser misses `Title:` and unlabeled top-line roles (JD-002) |
 | **R-042** | P1 | Regex Limit | **MIGRATED**| issues_jd.md | JD YOE pattern fails on `Minimum X+ years` with qualifiers (JD-017) |
-| **R-043** | P0 | Delimiter Det | **OPEN** | — | Bullet glyph retained on un-colonized skill lines, dropping 1st skill |
-| **R-044** | P1 | Tokenization | **OPEN** | — | Conjunction splitting fragments compound skills (`Data Structures and Algorithms`) |
-| **R-045** | P1 | Delimiter Det | **OPEN** | — | Slash delimiter fragments acronym skills (`CI/CD` -> `CI`, `CD`) |
-| **R-046** | P0 | Calculation | **OPEN** | — | `calculate_total_experience` skips year-only & year-to-Present tenures (0 months) |
+| **R-043** | P0 | Delimiter Det | **FIXED** | Phase 4.5/5 Audit | Bullet glyph stripped from un-colonized skill lines |
+| **R-044** | P1 | Tokenization | **FIXED** | Phase 4.5/5 Audit | Compound skills preserved before conjunction splitting |
+| **R-045** | P1 | Delimiter Det | **FIXED** | Phase 4.5/5 Audit | Slash-delimited acronyms (CI/CD) protected before splitting |
+| **R-046** | P0 | Calculation | **FIXED** | Phase 4.5/5 Audit | `calculate_total_experience` month defaults for year-only tenures |
 | **R-047** | P0 | Entity Assoc | **OPEN** | — | Education parser degree overwritten when Degree precedes Institution |
 
 ### Status Ledger Summary
 - **Total Resume Issues Documented:** 45 (R-001 through R-040, R-043 through R-047)
-- **FIXED:** 14 (R-001, R-002, R-004, R-006, R-008, R-009, R-010, R-013, R-023, R-024, R-025, R-030, R-031, R-035)
+- **FIXED:** 18 (R-001, R-002, R-004, R-006, R-008, R-009, R-010, R-013, R-023, R-024, R-025, R-030, R-031, R-035, R-043, R-044, R-045, R-046)
 - **PARTIALLY FIXED:** 4 (R-005, R-022, R-033, R-037)
-- **OPEN / AUDIT IDENTIFIED:** 27
+- **OPEN / AUDIT IDENTIFIED:** 23
 - **MIGRATED TO JD DOMAIN:** 2 (R-041 -> JD-002, R-042 -> JD-017)
 - **REGRESSIONS:** 0
 

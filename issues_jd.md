@@ -6,6 +6,9 @@
 > [!NOTE]
 > **JD-004, JD-006, JD-008, JD-009, JD-015, JD-018 have been RESOLVED.** The structured-section production refactor (Phase 4.5 Day 8) replaced the flat line-based JD parser with a shared section-detector contract. Test contracts were migrated and one genuine production bug was fixed. Resolution history is recorded in [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) under Section 9 (Phase 4.5 Day 8).
 
+> [!NOTE]
+> **JD-002, JD-003, JD-005, JD-016, JD-017 have been RESOLVED.** Role extraction now supports unlabeled first-line headings and expanded `ROLE_KEYWORDS` (`Title:`, `opening`, `vacancy`, `we are hiring`). Overall and skill-specific experience patterns support range minimums (`4-6 years`), prefix labels (`Experience: 3+ years`), domain qualifiers (`4+ years in applied ML`), and `in <skill>` and `<skill>: N+ years` phrasings. Resolution history is recorded in [`fixed.md`](file:///d:/Projects/resume-intelligence-platform/fixed.md) under Section 10 (Phase 4.5 Day 9).
+
 ---
 
 ## JD-002: Role extraction only works when a `Role:`, `Position:`, or `Job Title:` label is present — fails for all other formats
@@ -69,7 +72,7 @@ For the majority of real-world JDs (55% failure rate), `role` is `null`. Downstr
 `src/configs/jd_configs.py` — `ROLE_KEYWORDS`. `src/parsers/jd_parser.py` — `_extract_role()`.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9
 
 ---
 
@@ -120,7 +123,7 @@ Skill-specific experience requirements are under-reported. Downstream matching u
 `src/parsers/jd_parser.py` — `SKILL_YOE_PATTERN` regex. The `in` preposition variant is not covered.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9
 
 ---
 
@@ -198,7 +201,7 @@ Matching logic using `experience_months` as a hard threshold may reject candidat
 `src/parsers/jd_parser.py` — `YOE_PATTERN` and `_extract_experience()`. `src/configs/jd_configs.py` — no range support.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9
 
 ---
 
@@ -453,7 +456,7 @@ Cross-line false matches may produce an experience requirement number from unrel
 `src/parsers/jd_parser.py` — `_extract_experience()` lines 84-98.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9 (Scans line-by-line instead of joining full text)
 
 ---
 
@@ -532,7 +535,7 @@ JDs submitted as PDFs may produce different (degraded) results compared to JDs s
 `src/services/jd_service.py` — no `clean_text()` call after `extract_text()`.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9 (clean_text integrated into process_jd)
 
 ---
 
@@ -638,7 +641,7 @@ Standard JDs that specify required experience in a header block (`Experience: 3+
 `src/parsers/jd_parser.py` — `YOE_PATTERN` and `_extract_experience()`.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9
 
 ---
 
@@ -685,7 +688,7 @@ ATS minimum experience filters fail to extract tenure constraints from the vast 
 `src/parsers/jd_parser.py` — `YOE_PATTERN` and `_extract_experience()`.
 
 ### Status
-OPEN
+~~OPEN~~ **RESOLVED** — Phase 4.5 Day 9
 
 ---
 

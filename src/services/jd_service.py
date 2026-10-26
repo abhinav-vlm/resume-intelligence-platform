@@ -4,6 +4,7 @@ from starlette.datastructures import UploadFile
 
 from src.parsers.jd_parser import parse_jd
 from ..parsers.pdf_parser import extract_text
+from ..parsers.text_parser import clean_text
 
 
 async def process_jd(text: str | UploadFile):
@@ -19,7 +20,8 @@ async def process_jd(text: str | UploadFile):
                 detail="Invalid PDF file",
             )
 
-    jd = parse_jd(text)
+    cleaned_text = clean_text(text)
+    jd = parse_jd(cleaned_text)
 
     return {
         "text": text,

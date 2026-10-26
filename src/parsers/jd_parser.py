@@ -26,6 +26,10 @@ SKILL_PATTERN = "|".join(
 )
 
 
+# JD-003: extended to capture:
+#   1. "N years of <skill> experience"
+#   2. "N years of experience with/in <skill>"
+#   3. "<skill>: N+ years"  (key-value format, e.g. "Python: 3+ years")
 SKILL_YOE_PATTERN = re.compile(
     rf"""
     (?:
@@ -40,24 +44,82 @@ SKILL_YOE_PATTERN = re.compile(
         (?P<years_2>\d+)\+?
         \s+(?:years?|yrs?)
         \s+(?:of\s+)?experience
-        \s+(?:with\s+)?
+        \s+(?:(?:with|in)\s+)?
         (?P<skill_2>{SKILL_PATTERN})
+    )
+    |
+    (?:
+        (?P<skill_3>{SKILL_PATTERN})
+        \s*:\s*
+        (?P<years_3>\d+)\+?\s*(?:years?|yrs?)
     )
     """,
     re.IGNORECASE | re.VERBOSE,
 )
 
 
+# JD-005: captures the minimum of a range: "4-6 years" or "4 to 6 years".
+YOE_RANGE_PATTERN = re.compile(
+    r"""
+    \b
+    (?:minimum|at\s+least)?\s*
+    (?P<min>\d+)\s*(?:-|\sto\s)\s*(?P<max>\d+)\+?
+    \s+(?:years?|yrs?)
+    \s*(?:of\s+)?
+    (?:
+        (?:
+            professional|
+            industry|
+            relevant|
+            related|
+            hands\-on|
+            overall|
+            total|
+            software\s+engineering|
+            applied\s+\w+
+        )\s+
+    )*
+    experience\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+# JD-016: captures "Experience: 3+ years" or "Years of experience: 5+".
+YOE_LABEL_PATTERN = re.compile(
+    r"""
+    (?:experience|years?\s+of\s+experience)
+    \s*:\s*
+    (?P<years>\d+)\+?\s*(?:years?|yrs?)?
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+# JD-017: general narrative experience — domain qualifiers allowed,
+#         but skill-specific "experience with X" / "experience in X" excluded.
 YOE_PATTERN = re.compile(
     r"""
     \b(?:minimum|at\s+least)?\s*
     (\d+)\+?
     \s+(?:years?|yrs?)
     \s+(?:of\s+)?
-    (?:professional\s+)?
-    (?:industry\s+)?
+    (?:
+        (?:
+            professional|
+            industry|
+            relevant|
+            related|
+            hands\-on|
+            overall|
+            total|
+            software\s+engineering|
+            applied\s+\w+
+        )\s+
+    )*
     experience\b
-    (?!\s+(?:with|in)\b)
+    (?!\s*:)              # exclude "Experience: N years" label
+    (?!\s+(?:with|in)\b)  # exclude skill-specific "experience with X"
 
     |
 
@@ -66,6 +128,14 @@ YOE_PATTERN = re.compile(
     \s+(?:years?|yrs?)
     \s+(?:in\s+the\s+)?
     industry\b
+
+    |
+
+    # "N years in <domain>" — e.g. "4+ years in applied machine learning"
+    \b(?:minimum|at\s+least)?\s*
+    (\d+)\+?
+    \s+(?:years?|yrs?)
+    \s+in\s+(?:applied|software|machine\s+learning|data\s+science|the\s+field)
     """,
     re.IGNORECASE | re.VERBOSE,
 )
@@ -178,23 +248,94 @@ def detect_jd_sections(text: str) -> list[dict]:
 # Role extraction
 # ------------------------------------------------------
 
+# Metadata key words that signal a line is NOT a job title.
+_ROLE_EXCLUSION_KEYS = {
+    "http", "https", "www", "location", "date", "department",
+    "salary", "email", "phone", "address", "apply",
+    "experience", "requirements", "responsibilities",
+}
+
+# Sentence openers that disqualify a line as a job title.
+_PROSE_OPENERS = (
+    "we ", "our ", "you ", "the ", "this ", "that ", "join ",
+    "looking ", "seeking ", "help ", "if ", "are ", "is ",
+    "please ", "note ",
+)
+
+# Section keywords that mark the start of the document body —
+# the positional heuristic must not look past these.
+_BODY_SECTION_KEYWORDS = {
+    "responsibilities", "requirements", "qualifications",
+    "about", "overview", "what you", "minimum", "preferred",
+    "benefits", "perks", "equal opportunity", "privacy",
+}
+
+
 def _extract_role(jd: list[str]) -> str | None:
     """
-    Extract a role from configured role-keyword lines.
+    Extract a role title from the JD.
+
+    Strategy (in order of precedence):
+    1. Labeled prefix — e.g. ``Role:``, ``Job Title:``, ``Title:``.
+    2. Positional heuristic — first substantive non-prose line
+       before the first recognised section-header keyword.
     """
 
+    # --- Pass 1: labeled prefix ---
     for line in jd:
         if ":" not in line:
             continue
 
         key, role = line.split(":", 1)
+        key_normalized = key.strip().lower()
 
-        if key.strip().lower() not in ROLE_KEYWORDS:
+        if key_normalized not in ROLE_KEYWORDS:
             continue
 
         role = role.strip()
-
         return role or None
+
+    # --- Pass 2: positional heuristic ---
+    for line in jd:
+        line_lower = line.lower().strip()
+
+        # Stop when we hit the document body.
+        if any(line_lower.startswith(kw) for kw in _BODY_SECTION_KEYWORDS):
+            break
+
+        # Skip very short lines.
+        if len(line.strip()) < 4:
+            continue
+
+        # Skip metadata key:value lines with known non-title keys.
+        if ":" in line:
+            key = line.split(":", 1)[0].strip().lower()
+            if key in _ROLE_EXCLUSION_KEYS:
+                continue
+
+        # Skip bare URLs.
+        if line.strip().lower().startswith(("http", "www")):
+            continue
+
+        # Skip lines that start with common prose openers.
+        if any(line_lower.startswith(p) for p in _PROSE_OPENERS):
+            continue
+
+        # Skip lines that end with sentence-ending punctuation (prose sentences).
+        if line.strip().endswith((".", "!", "?")):
+            continue
+
+        # Skip long lines (> 7 words) — likely narrative, not a title.
+        if len(line.strip().split()) > 7:
+            continue
+
+        # Skip lines containing common requirement / verb indicators.
+        if any(w in line_lower for w in ("required", "preferred", "must have", "experience", "looking for", "seeking")):
+            continue
+
+        candidate = line.strip().rstrip(".")
+        if candidate:
+            return candidate
 
     return None
 
@@ -205,27 +346,45 @@ def _extract_role(jd: list[str]) -> str | None:
 
 def _extract_experience(jd: list[str]) -> int | None:
     """
-    Extract overall professional/industry experience.
+    Extract overall professional/industry experience in months.
 
-    Skill-specific experience is deliberately excluded.
+    Scanning order (highest confidence first):
+    1. Prefix label  — ``Experience: 3+ years``              (JD-016)
+    2. Range format  — ``4-6 years of experience`` → minimum (JD-005)
+    3. General       — ``3+ years of experience`` / domain modifier (JD-017)
+
+    Skill-specific experience is deliberately excluded via the
+    negative lookahead in YOE_PATTERN.
     """
 
-    text = " ".join(jd)
+    best: int | None = None
 
-    match = re.search(
-        YOE_PATTERN,
-        text,
-    )
+    for line in jd:
+        # 1. Label: "Experience: N+ years"
+        lm = re.search(YOE_LABEL_PATTERN, line)
+        if lm:
+            years = int(lm.group("years"))
+            # Label format is unambiguous — return immediately.
+            return years * 12
 
-    if not match:
-        return None
+        # 2. Range: "4-6 years of experience" — use the minimum.
+        rm = re.search(YOE_RANGE_PATTERN, line)
+        if rm:
+            years = int(rm.group("min"))
+            if best is None or years < best:
+                best = years
+            continue
 
-    years = match.group(1) or match.group(2)
+        # 3. General narrative.
+        gm = re.search(YOE_PATTERN, line)
+        if gm:
+            years_str = gm.group(1) or gm.group(2) or gm.group(3)
+            if years_str is not None:
+                years = int(years_str)
+                if best is None:
+                    best = years
 
-    if years is None:
-        return None
-
-    return int(years) * 12
+    return best * 12 if best is not None else None
 
 
 # ------------------------------------------------------
@@ -235,8 +394,17 @@ def _extract_experience(jd: list[str]) -> int | None:
 def _extract_skill_specific_experience(
     jd: list[str],
 ) -> list[dict]:
+    """
+    Extract per-skill experience requirements.
+
+    Handles three phrasings (JD-003):
+      • "N years of <skill> experience"
+      • "N years of experience with/in <skill>"
+      • "<skill>: N+ years"
+    """
 
     skill_yoe = []
+    seen_skills: set[str] = set()
 
     for line in jd:
         for match in re.finditer(
@@ -246,12 +414,23 @@ def _extract_skill_specific_experience(
             years = (
                 match.group("years_1")
                 or match.group("years_2")
+                or match.group("years_3")
             )
 
             skill = (
                 match.group("skill_1")
                 or match.group("skill_2")
+                or match.group("skill_3")
             )
+
+            if not years or not skill:
+                continue
+
+            skill_key = skill.casefold()
+            if skill_key in seen_skills:
+                continue
+
+            seen_skills.add(skill_key)
 
             skill_yoe.append(
                 {

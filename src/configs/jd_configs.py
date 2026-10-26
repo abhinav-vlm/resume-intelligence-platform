@@ -2,6 +2,10 @@ ROLE_KEYWORDS = {
     "role",
     "position",
     "job title",
+    "title",
+    "opening",
+    "vacancy",
+    "we are hiring",
 }
 
 

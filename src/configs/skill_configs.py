@@ -70,6 +70,22 @@ SKILLS = {
     "version_control": {
         "Git",
     },
+
+    # R-044: compound multi-word technical concepts that must survive
+    # conjunction splitting (e.g. 'Data Structures and Algorithms').
+    "compound_concepts": {
+        "Data Structures and Algorithms",
+        "Object Oriented Programming",
+        "Computer Vision",
+        "Natural Language Processing",
+        "Machine Learning",
+        "Deep Learning",
+        "Reinforcement Learning",
+        "System Design",
+        "Distributed Systems",
+        "Operating Systems",
+        "Database Management Systems",
+    },
 }
 
 

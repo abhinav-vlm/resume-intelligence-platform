@@ -29,6 +29,10 @@ def build_skill_patterns() -> list[tuple[str, re.Pattern]]:
     ]
 
 
+# Common bullet/list glyphs that may prefix skill lines (R-043).
+_BULLET_PREFIX_RE = re.compile(r"^[\s\u2022\u2023\u25cf\u2043\u25e6\u25aa\u25b8\u25ba\u2192\u203a*\-–—]+")
+
+
 def extract_skill_candidates(line: str) -> list[str]:
     """
     Split a structured skill line into candidates.
@@ -36,39 +40,88 @@ def extract_skill_candidates(line: str) -> list[str]:
     Supported separators:
     - comma
     - pipe
-    - slash
     - conjunction 'and'
+    - slash (excluding slashes inside known multi-token skills like CI/CD)
+
+    R-043: Leading bullet glyphs (•, ‣, ●, -, *, –, →, ►, ▪, ▸, ◦) are
+    stripped before any further processing so the first skill is not
+    corrupted.
+
+    R-045: Slash-containing known skills (e.g. CI/CD) are extracted from
+    the raw value first.  Their character ranges are removed before the
+    delimiter-split step so the slash does not fragment them.
 
     Multi-word skills remain intact.
 
-    Examples:
+    Examples::
 
         Python, React, SQL
         Python | C++ | JavaScript
         HTML, CSS and React JS
+        • Python, React, SQL    ← bullet stripped
+        CI/CD, Docker          ← CI/CD protected
 
-    become:
-
-        ["Python", "React", "SQL"]
-        ["Python", "C++", "JavaScript"]
-        ["HTML", "CSS", "React JS"]
     """
+
+    # R-043: strip leading bullet glyph(s) and surrounding whitespace.
+    line = _BULLET_PREFIX_RE.sub("", line).strip()
 
     if ":" in line:
         _, value = line.split(":", 1)
     else:
         value = line
 
+    value = value.strip()
+
+    # ------------------------------------------------------------------
+    # R-045 / R-044: protect known skills containing delimiter characters
+    # (slash or " and ") before splitting, so they are not fragmented.
+    #
+    # Examples:  CI/CD (slash)  /  Data Structures and Algorithms (and)
+    #
+    # For each such skill:
+    #   1. Locate it in the working string (case-insensitive, word-bounded).
+    #   2. Record the surface text.
+    #   3. Replace its range with null-byte placeholders so the split
+    #      regex cannot see the delimiter inside it.
+    # ------------------------------------------------------------------
+    protected_skills: list[str] = []
+    protected_value = value
+
+    # Sort longest first so more-specific compounds take precedence.
+    for skill in sorted(KNOWN_SKILLS, key=len, reverse=True):
+        if "/" not in skill and " and " not in skill.lower():
+            continue
+        pattern = re.compile(
+            r"(?<![\w/])" + re.escape(skill) + r"(?![\w/])",
+            re.IGNORECASE,
+        )
+        match = pattern.search(protected_value)
+        if match:
+            protected_skills.append(match.group(0))
+            # Null-byte placeholder — preserves string length, invisible to split.
+            protected_value = (
+                protected_value[: match.start()]
+                + "\x00" * (match.end() - match.start())
+                + protected_value[match.end() :]
+            )
+
+    # Now split the protected value on regular delimiters.
     candidates = re.split(
         r"[,|/]|(?i:\s+and\s+)",
-        value,
+        protected_value,
     )
 
-    return [
-        candidate.strip()
+    result = [
+        candidate.replace("\x00", "").strip()
         for candidate in candidates
-        if candidate.strip()
+        if candidate.replace("\x00", "").strip()
     ]
+
+    # Re-insert the protected multi-delimiter skills.
+    result.extend(protected_skills)
+
+    return result
 
 
 def _resolve_known_skill_matches(

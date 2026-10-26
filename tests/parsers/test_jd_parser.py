@@ -752,3 +752,71 @@ def test_extract_skills_requirement_from_preferred_section():
     assert req_map["Docker"] == "optional"
     assert req_map["Kubernetes"] == "optional"
 
+
+def test_extract_role_unlabeled_topline():
+    """JD-002: Extract role from unlabeled top line."""
+    jd = [
+        "Backend Engineer - Python/FastAPI",
+        "We are looking for a skilled backend developer.",
+        "Minimum 5 years of professional experience.",
+    ]
+    assert _extract_role(jd) == "Backend Engineer - Python/FastAPI"
+
+
+def test_extract_role_from_title_label():
+    """JD-002: Extract role from 'Title:' label prefix."""
+    jd = [
+        "Title: Research Engineer, Foundation Models",
+        "Location: London, UK",
+    ]
+    assert _extract_role(jd) == "Research Engineer, Foundation Models"
+
+
+def test_extract_experience_labeled_prefix():
+    """JD-016: Extract experience from 'Experience: N+ years' label."""
+    jd = [
+        "Machine Learning Engineer",
+        "Location: Bengaluru, India",
+        "Experience: 3+ years",
+    ]
+    assert _extract_experience(jd) == 36
+
+
+def test_extract_experience_range_minimum():
+    """JD-005: Extract minimum of range format '4-6 years'."""
+    jd = [
+        "4-6 years of experience",
+    ]
+    assert _extract_experience(jd) == 48
+
+
+def test_extract_experience_domain_modifier():
+    """JD-017: Extract experience with domain modifier '4+ years in applied ML'."""
+    jd = [
+        "4+ years in applied machine learning",
+    ]
+    assert _extract_experience(jd) == 48
+
+
+def test_extract_skill_specific_experience_in_phrasing():
+    """JD-003: Extract skill-specific experience with 'in <skill>' phrasing."""
+    jd = [
+        "5 years of experience in Python",
+        "3 years of experience in SQL",
+    ]
+    results = _extract_skill_specific_experience(jd)
+    skill_map = {r["skill"]: r["experience_months"] for r in results}
+    assert skill_map.get("Python") == 60
+    assert skill_map.get("SQL") == 36
+
+
+def test_extract_skill_specific_experience_colon_format():
+    """JD-003: Extract skill-specific experience with '<skill>: N+ years' format."""
+    jd = [
+        "Python: 3+ years",
+        "AWS: 2 years",
+    ]
+    results = _extract_skill_specific_experience(jd)
+    skill_map = {r["skill"]: r["experience_months"] for r in results}
+    assert skill_map.get("Python") == 36
+    assert skill_map.get("AWS") == 24

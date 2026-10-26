@@ -3,12 +3,16 @@ def compose_match_result(
     experience_match,
     skill_experience_match,
     role_match,
-    project_match
+    project_match,
+    scoring=None
 ):
-    return {
+    result = {
         "skill_match": skill_match,
         "experience_match": experience_match,
         "skill_experience_match": skill_experience_match,
-        "role_match":role_match,
-        "project_match":project_match
+        "role_match": role_match,
+        "project_match": project_match,
     }
+    if scoring is not None:
+        result["scoring"] = scoring
+    return result

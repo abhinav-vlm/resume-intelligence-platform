@@ -524,3 +524,90 @@ def test_historical_experience_preserves_end_year():
 
     assert result[0]["start_year"] == 2018
     assert result[0]["end_year"] == 2021
+
+
+# ============================================================
+# R-046: Year-only and year-to-Present tenures must not yield 0 months
+# ============================================================
+
+def test_calculate_total_experience_year_only_range():
+    """R-046: '2020 - 2024' should contribute months, not be silently skipped."""
+    experience = [
+        {
+            "start_month": None,
+            "start_year": 2020,
+            "end_month": None,
+            "end_year": 2024,
+        }
+    ]
+
+    result = calculate_total_experience(experience)
+
+    # Jan 2020 – Dec 2024 = 5 calendar years (2020,2021,2022,2023,2024)
+    # = 60 months (12 months each, inclusive)
+    assert result > 0, "Year-only range must not yield 0 months"
+    assert result == 60
+
+
+def test_calculate_total_experience_year_to_present():
+    """R-046: '2022 - Present' should contribute months using current date."""
+    from datetime import datetime
+
+    now = datetime.now()
+
+    experience = [
+        {
+            "start_month": None,
+            "start_year": 2022,
+            "end_month": now.strftime("%B"),
+            "end_year": now.year,
+        }
+    ]
+
+    result = calculate_total_experience(experience)
+
+    # At least 2022 Jan to now — should be > 0
+    assert result > 0, "Year-to-Present range must not yield 0 months"
+
+
+def test_calculate_total_experience_mixed_year_only_and_full():
+    """R-046: Mix of year-only and full month ranges should all contribute."""
+    experience = [
+        {
+            "start_month": None,
+            "start_year": 2018,
+            "end_month": None,
+            "end_year": 2020,
+        },
+        {
+            "start_month": "January",
+            "start_year": 2021,
+            "end_month": "December",
+            "end_year": 2022,
+        },
+    ]
+
+    result = calculate_total_experience(experience)
+
+    # Jan 2018 – Dec 2020 = 3 calendar years = 36 months
+    # Jan 2021 – Dec 2022 = 2 calendar years = 24 months
+    # No overlap → 36 + 24 = 60 total
+    assert result > 0
+    assert result == 60
+
+
+def test_normalize_experience_year_only_duration_included_in_total():
+    """R-046: End-to-end — a year-only duration string must not produce 0-month entry."""
+    experience = [
+        {
+            "company": "TechCorp",
+            "duration": "2020 - 2024",
+            "role": "Software Engineer",
+            "description": [],
+        }
+    ]
+
+    normalized = normalize_experience(experience)
+    total = calculate_total_experience(normalized)
+
+    assert total > 0, "Year-only duration must contribute to total experience months"

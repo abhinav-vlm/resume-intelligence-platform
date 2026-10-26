@@ -1,7 +1,7 @@
 # Fixed Issues & Hardening Verification Report
 
-**Audit Date:** 2026-09-16  
-**Commits Audited:** `e72a322` (*fix: update project extraction and experience extraction*) and `f739d5b` (*fix: generalize skill extraction*)  
+**Audit Date:** 2026-09-16
+**Commits Audited:** `e72a322` (*fix: update project extraction and experience extraction*) and `f739d5b` (*fix: generalize skill extraction*)
 **Source/Test Code Status:** Untouched / preserved in original committed state (no modifications to `src/` or `tests/`).
 
 ---
@@ -252,8 +252,8 @@ Running `.venv\Scripts\pytest -q`:
 
 ## 5. Phase 4.5 Day 5 Verification & Hardening Audit (Audit Date: 2026-09-28)
 
-**Audit Date:** 2026-09-28  
-**Commits Audited:** `26d1fde` (*fix: experience normalization and integration*)  
+**Audit Date:** 2026-09-28
+**Commits Audited:** `26d1fde` (*fix: experience normalization and integration*)
 **Scope:** Project boundaries, experience parsing, tenure/date normalization, and regression locking across the resume pipeline.
 
 ### 5.1 Issues Addressed & Verified
@@ -373,8 +373,8 @@ Running `.venv\Scripts\pytest -q`:
 
 ## 7. Phase 4.5 Day 6 Block 5: Audit Findings & Gap Ledger (Audit Date: 2026-09-28)
 
-**Audit Target:** Phase 4.5 Day 6 Working Tree (READ-ONLY Audit)  
-**Baseline Test Count:** **408 passed, 0 failed**  
+**Audit Target:** Phase 4.5 Day 6 Working Tree (READ-ONLY Audit)
+**Baseline Test Count:** **408 passed, 0 failed**
 **Findings Summary:**
 
 ### 7.1 Technical / Implementation Gaps (Identified & Cataloged)
@@ -407,8 +407,8 @@ Running `.venv\Scripts\pytest -q`:
 
 ## 8. Phase 4.5 Day 7 Execution Summary (Audit Date: 2026-09-29)
 
-**Audit Date:** 2026-09-29  
-**Scope:** JD Preprocessing Wiring (JD-013) + Skill Vocabulary Overhaul (JD-001) + Real-World JD Fixture Validation.  
+**Audit Date:** 2026-09-29
+**Scope:** JD Preprocessing Wiring (JD-013) + Skill Vocabulary Overhaul (JD-001) + Real-World JD Fixture Validation.
 **Baseline at start of Day 7:** 408 passed, 0 failed.
 
 ### 8.1 Issues Resolved
@@ -474,9 +474,9 @@ Both compound fragments are extracted as individual known/unknown skills. The ex
 
 ## 9. Phase 4.5 Day 8 Execution Summary (Audit Date: 2026-09-30)
 
-**Audit Date:** 2026-09-30  
-**Scope:** JD Section Detection & Requirement Context — test-contract migration for the pre-existing structured-section production refactor + one genuine production bug fix.  
-**Baseline at start of Day 8:** 425 passed, 0 failed.  
+**Audit Date:** 2026-09-30
+**Scope:** JD Section Detection & Requirement Context — test-contract migration for the pre-existing structured-section production refactor + one genuine production bug fix.
+**Baseline at start of Day 8:** 425 passed, 0 failed.
 **Starting regression state:** 390 passed, 35 failed (stale test contracts against the new structured-section API).
 
 ### 9.1 Pre-existing Production Refactor (not introduced on Day 8)
@@ -503,10 +503,10 @@ The following production changes were already committed before Day 8 work began 
 
 ### 9.3 Genuine Production Bug Fixed (Day 8)
 
-**File:** [`src/parsers/jd_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py)  
+**File:** [`src/parsers/jd_parser.py`](file:///d:/Projects/resume-intelligence-platform/src/parsers/jd_parser.py)
 **Function:** `parse_jd()` — `clean_jd` reconstruction loop
 
-**Root Cause:**  
+**Root Cause:**
 `detect_sections()` creates preamble sections (text before the first recognized section header) with:
 ```python
 {"name": "preamble", "original_name": None, "text": "..."}
@@ -568,5 +568,82 @@ The following contracts are now in force across the JD and resume pipelines:
 
 **`detect_sections()` mock contract (tests)**
 - Mocks must accept `text`, `section_headers=None`, `section_aliases=None`, and `**kwargs`.
+
+---
+
+## 10. Phase 4.5 Day 9 Execution Summary (Audit Date: 2026-10-10)
+
+**Audit Date:** 2026-10-10
+**Scope:** JD Role & Experience Extraction Generalization — unlabeled role heuristics, prefix label extraction, domain-qualified YOE, range minimums, and expanded skill YOE phrasings.
+**Baseline at start of Day 9:** 427 passed, 0 failed.
+**New tests added:** +7 targeted unit tests in `tests/parsers/test_jd_parser.py`.
+**Current test suite:** **434 passed, 0 failed**.
+
+### 10.1 Issues Resolved on Day 9
+
+| Issue ID | Severity | Category | Problem Summary | Verified Fix |
+|---|---|---|---|---|
+| **JD-002** | **P1** | Information Loss | Role extraction failed when no `Role:`, `Position:`, or `Job Title:` prefix was present | Expanded `ROLE_KEYWORDS` in `jd_configs.py` (`title`, `opening`, `vacancy`, `we are hiring`). Implemented positional fallback in `_extract_role()` to inspect first non-empty substantive line before first section header, guarding against URLs, metadata keys, prose openers, sentence punctuation, and requirement lines |
+| **JD-003** | **P1** | Incorrect Extraction | `SKILL_YOE_PATTERN` missed `N years of experience in <skill>` and `<skill>: N+ years` phrasings | Expanded `SKILL_YOE_PATTERN` with `(?:(?:with\|in)\s+)?` and `<skill>: N+ years` branch; deduplicated by canonical skill name |
+| **JD-005** | **P1** | Incorrect Extraction | Experience range format (`4-6 years`) arbitrarily picked maximum or failed | Added `YOE_RANGE_PATTERN` and updated `_extract_experience()` to extract the threshold minimum (`48` months for `4-6 years`) |
+| **JD-016** | **P1** | Incorrect Extraction | `Experience: N+ years` label in header blocks failed overall experience extraction | Added `YOE_LABEL_PATTERN` to extract prefix-labeled experience requirements immediately with highest confidence |
+| **JD-017** | **P1** | Generalization | `YOE_PATTERN` failed with domain qualifiers (`4+ years in applied ML`, `professional industry experience`) | Updated `YOE_PATTERN` to support arbitrary chained domain qualifiers and trailing `in <domain>` phrasing while preserving negative lookahead against skill-specific experience |
+
+### 10.2 Real-World JD Validation
+
+Verified role and experience extraction across all real production JD fixtures:
+- `jd_ml_engineer_test.pdf`: `role = "Machine Learning Engineer"`, `experience = 36` months (`Experience: 3+ years`)
+- `Meta_ML_JD.pdf`: `role = "Machine Learning Engineer - Ranking & Recommendations"`, `experience = 48` months (`4+ years in applied machine learning`)
+- `Databricks_SE_JD.pdf`: `role = "Data & ML Platform Engineer"`
+- `DeepMind_Research_Engineer_JD.pdf`: `role = "Research Engineer, Foundation Models"` (`Title:` label)
+- `Stripe_Backend_JD.pdf`: `role = "Backend Engineer - Fraud & Risk Platform"`
+
+### 10.3 Test Suite Execution & Regression Results
+
+| Suite | Status |
+|---|---|
+| **Targeted suite** (`test_jd_parser.py`, `test_jd_service.py`, `test_real_jd_fixtures.py`) | **84 passed, 0 failed** |
+| **Full pytest suite** | **434 passed, 0 failed** (100% green) |
+
+- **Baseline progression:** 427 passed → **434 passed** (+7 new tests).
+- **Zero regressions** across the entire workspace.
+- **Phase 4.5 Hardening Complete:** All P0 and blocking P1 issues are resolved.
+- **Unlocked:** Phase 6 (ML/NLP Intelligence Layer).
+
+---
+
+## 11. Phase 5 Closure Execution Summary (Audit Date: 2026-10-19)
+
+**Scope:** Phase 5 Resume ↔ JD Matching Closure (P5D8 Deterministic Match Scoring & P5D9 Integration & Robustness) and Pre-Matching Ingestion Bug Fixes (R-043, R-044, R-045, R-046).
+**Baseline at start:** 434 passed (prior checkpoint: 427).
+**New tests added:** +29 tests (+19 in `test_scorer.py`, +1 in `test_matching_service.py`, +9 in parser/normalizer tests).
+**Final verified test suite:** **463 passed, 0 failed** (100% green).
+
+### 11.1 Component Deliverables (P5D8 & P5D9)
+
+1. **Deterministic Match Scorer (`src/matching/scorer.py`):**
+   - **`score_skills`:** Weighted scoring distinguishing required (2.0x) vs optional (1.0x) skills; surfaces `matched_required`, `missing_required`, and missing-data flags.
+   - **`score_experience`:** Tenure alignment ratio capped at 100%, proportional tenure deficit calculation, penalty for underqualified skill-specific experience.
+   - **`score_role`:** 100% for canonical match, 50% neutral for unknown role, 0% for mismatch.
+   - **`score_projects`:** Fraction of JD skills demonstrated across project descriptions.
+   - **`calculate_composite_score`:** Configurable weighted combination (Skills 40%, Experience 25%, Role 20%, Projects 15%) yielding 0–100 overall score, transparent flags, dimensional breakdown, and human-readable verdict (`Strong Match`, `Moderate Match`, `Underqualified`).
+2. **Service & Contract Integration (`src/services/matching_service.py`, `src/matching/match_result.py`):**
+   - Wired `scoring` into `compose_match_result` and `calculate_match`.
+   - Hardened input handling for partial/missing resume or JD dictionaries.
+   - Preserved full backward compatibility with existing API contracts.
+3. **Ingestion & Normalization Fixes (R-043 through R-046):**
+   - **R-043:** Bullet glyph stripping from uncolonized skill lines.
+   - **R-044:** Protection of compound technical terms containing conjunctions (`Data Structures and Algorithms`).
+   - **R-045:** Protection of slash-delimited technical acronyms (`CI/CD`).
+   - **R-046:** Anchor-year month defaulting (Jan/Dec) for year-only intervals in `calculate_total_experience`.
+
+### 11.2 Verification Results
+
+| Suite | Tests | Result |
+|---|---|---|
+| Matching & Scorer Suite (`tests/matching/`, `test_matching_service.py`) | 76 | **76 passed, 0 failed** |
+| Skills Parser Suite (`test_skills_parser.py`) | 22 | **22 passed, 0 failed** |
+| Experience Normalizer Suite (`test_experience_normalizer.py`) | 68 | **68 passed, 0 failed** |
+| Full Workspace Pytest Suite | 479 | **479 passed, 0 failed** |
 
 ---

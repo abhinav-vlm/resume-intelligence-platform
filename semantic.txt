@@ -1,0 +1,596 @@
+# Cross-Industry Job Vocabulary Discovery & Taxonomy Audit
+# Phase 6, Block 2 — Research & Repository Inspection Report
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+This document establishes the foundational research and taxonomy framework for transitioning the Resume Intelligence Platform from its current deterministic matching baseline (Phase 5) to a cross-industry semantic intelligence engine (Phase 6).
+
+Key Findings from Working Tree Audit:
+1. Domain Monoculture: The platform’s existing configuration files (skill_configs.py, matching_roles.py, normalization_configs.py) are 100% hardcoded for Software Engineering and Data/ML. Out of 62 known skills, 4 canonical roles, 5 seniority keywords, 5 skill aliases, 4 degrees, and 4 academic field aliases, 0% cover non-tech domains such as Human Resources, Finance, Healthcare, Sales, Supply Chain, Manufacturing, or Customer Success.
+2. Ingestion Asymmetry (False Negative Generator): In resume_service.py (lines 91-95), extracted skills not found in KNOWN_SKILLS are isolated into unknown_skills, while only skill_data["known"] is assigned to resume_data["skills"]. Because matching_service.py (line 28) inspects only resume_data.get("skills"), any non-tech skill on a resume is silently dropped from matching. Meanwhile, jd_parser.py (lines 758-815) extracts unknown capitalized tokens into jd["skills"]. Consequently, when an HR or Finance JD requires domain tools (e.g., Workday, Bloomberg), the candidate’s matching resume will register 0 matches and a 100% missing-skill deficit.
+3. Flat Skill Reductionism: Modern hiring evaluates credentials, licenses, domain experience, tool proficiencies, action outcomes, and mandatory statutory requirements. The current platform reduces all qualifications to a flat list of lowercase string comparisons in skill_matcher.py.
+4. Architectural Path Forward: Attempting to solve cross-industry support by expanding a monolithic hardcoded Python set is mathematically unviable. Phase 6 must introduce a hybrid layered architecture:
+   - Layer 1: Pluggable domain taxonomies (namespaced canonical vocabularies).
+   - Layer 2: Open-vocabulary candidate bridging (unblocking resume unknown skills).
+   - Layer 3: Context-aware entity typing (distinguishing skills from credentials and noise).
+   - Layer 4: Dense semantic embeddings with empirically calibrated similarity gates.
+   - Layer 5: Dual-track hybrid scoring that preserves Phase 5 deterministic vetoes.
+
+
+================================================================================
+2. EXISTING REPOSITORY VOCABULARY & MATCHING BEHAVIOR
+================================================================================
+
+2.1 Inventory of Configured Vocabulary
+--------------------------------------
+- src/configs/skill_configs.py:
+  * Symbols: SKILLS, KNOWN_SKILLS
+  * Count: 62 unique skills
+  * Domain Scope: 100% Software & Data/ML
+  * Breakdown: programming_languages (9), web_frontend (3: HTML, CSS, React), backend_systems (10), databases (8), ml_ai (10), devops_cloud (10), version_control (1: Git), compound_concepts (11). Zero non-tech terms.
+
+- src/configs/normalization_configs.py:
+  * Symbol: SKILL_ALIASES
+  * Count: 5 canonical targets
+  * Domain Scope: 100% Web Dev & ML
+  * Breakdown: Maps reactjs/react.js -> React, nodejs -> Node.js, nextjs -> Next.js, expressjs -> Express.js, sklearn -> Scikit-learn.
+  * Symbols: DEGREE_ALIASES, FIELD_ALIASES
+  * Count: 4 degrees, 4 fields
+  * Domain Scope: 100% Engineering/CS
+  * Breakdown: Degrees: B.Tech, B.E., M.Tech, M.Sc. Fields: CSE, ECE, EEE, ME. No MBA, MD, BBA, B.Com, LLB, Nursing, or Finance degrees.
+
+- src/configs/matching_roles.py:
+  * Symbol: CANONICAL_ROLES
+  * Count: 4 canonical roles
+  * Domain Scope: 100% Tech
+  * Breakdown: machine learning engineer, software engineer, backend engineer, data analyst.
+  * Symbol: SENIORITY_LEVELS
+  * Count: 5 prefixes
+  * Domain Scope: Tech IC levels
+  * Breakdown: senior, junior, lead, principal, staff. Misses director, vp, head of, manager, associate, officer, specialist.
+
+- src/configs/jd_configs.py:
+  * Symbols: ROLE_KEYWORDS, REQUIRED_SKILL_KEYWORDS, OPTIONAL_SKILL_KEYWORDS, JD_SECTION_HEADERS
+  * Domain Scope: General structure
+  * Breakdown: Recognizes requirements, responsibilities, noise sections, and role titles via keyword matching.
+
+2.2 Extraction Pipelines: Resumes vs. JDs
+-----------------------------------------
+- Resume Skill Extraction (src/parsers/skills_parser.py: lines 318-381):
+  1. Splits designated skills section text by line and delimiter (extract_skill_candidates splits commas, pipes, slashes, and conjunctions).
+  2. Bullet glyphs (•, ‣, ●, -, *) are stripped via _BULLET_PREFIX_RE.
+  3. Compound concepts (Data Structures and Algorithms) and acronyms (CI/CD) are protected with null-byte masking before delimiter splitting.
+  4. Candidates are tested against regex patterns compiled strictly from KNOWN_SKILLS and SKILL_ALIASES (build_skill_patterns).
+  5. Segregation: Matches go to known_skills; non-matches meeting length criteria (<= 60 chars, <= 6 words) go to unknown_skills.
+
+- Service Pipeline Disconnect (src/services/resume_service.py: lines 91-95):
+  skills = normalize_skills(skill_data["known"])
+  unknown_skills = skill_data["unknown"]
+  ...
+  resume_data = {
+      ...
+      "skills": skills,                  # ONLY known skills!
+      "unknown_skills": unknown_skills,  # Segregated
+  }
+
+  In src/services/matching_service.py (line 28):
+  resume_skills = resume_data.get("skills") or []
+  jd_skills = jd_data.get("skills") or []
+  skill_match = match_skills(resume_skills, jd_skills)
+
+  Verified Behavior: unknown_skills from resumes are completely invisible to match_skills().
+
+- JD Skill Extraction (src/parsers/jd_parser.py: lines 678-815):
+  1. Scans non-noise section text line-by-line.
+  2. Extracts known_matches via skill_patterns.
+  3. Extracts unknown_matches via capitalized title-case regex ([A-Z][A-Za-z0-9]*(?:[-.][A-Za-z0-9]+)*) filtered against UNKNOWN_SKILL_STOPWORDS.
+  4. Combines both known and unknown matches into the output skills and skill_requirements.
+
+  Consequence of Extraction Asymmetry:
+  If an HR JD requires Workday and PeopleSoft:
+  - JD parser extracts: jd["skills"] = ["Workday", "PeopleSoft"].
+  - Candidate resume has: Workday, PeopleSoft.
+  - Resume parser puts them into unknown_skills because they are not in KNOWN_SKILLS.
+  - Resume service passes: resume_data["skills"] = [].
+  - Deterministic matcher produces: matched = [], missing_required = ["Workday", "PeopleSoft"].
+  - Candidate receives a score of 0.0 and verdict Underqualified, despite having every required qualification.
+
+2.3 Matching and Scoring Behavior
+---------------------------------
+1. Skill Matching (src/matching/skill_matcher.py: lines 1-20): Strict set membership: if skill in resume_set. No fuzzy matching, no token-overlap matching, no semantic expansion.
+2. Deterministic Scorer (src/matching/scorer.py: lines 23-113): Calculates score based on 2.0x required vs 1.0x optional weighting. Missing required skills act as a hard veto against Strong Match.
+3. Role Matching (src/matching/role_matcher.py: lines 1-56): Normalizes roles by stripping words in SENIORITY_LEVELS and checking against CANONICAL_ROLES. If a role is not in the 4 known tech roles, status is "unknown". Unknown roles earn a flat 50.0 neutral points.
+4. Project Matching (src/matching/project_matcher.py: lines 1-20): Performs lowercase substring check (skill.lower() in line.lower()) across project bullet descriptions for JD skills.
+
+2.4 Representation of Extended Qualifications
+---------------------------------------------
+- Certifications & Licenses: Discarded. Issue issues_resume.md:R-015 records that CERTIFICATIONS and PUBLICATIONS sections are not parsed and have no schema representation.
+- Skill-Specific Experience: Supported in schema (src/matching/experience_matcher.py: lines 16-53), but extraction is bound to SKILL_YOE_PATTERN and KNOWN_SKILLS.
+- Responsibilities vs. Outcomes: JD responsibilities are captured as raw text blocks in sections, but never semantically matched against candidate experience bullet points.
+
+
+================================================================================
+3. CROSS-INDUSTRY TERMINOLOGY INVENTORY (10 JOB FAMILIES)
+================================================================================
+
+3.1 Software Engineering and IT
+-------------------------------
+* Competencies: Distributed Systems, System Design, Concurrency, Microservices Architecture, API Design, Object-Oriented Programming (OOP), Test-Driven Development (TDD), Site Reliability Engineering (SRE).
+* Tools & Platforms: Linux, Docker, Kubernetes, Terraform, AWS, Azure, GCP, PostgreSQL, Redis, Kafka, RabbitMQ, Git, GitHub Actions, Datadog, Prometheus.
+* Certifications: AWS Certified Solutions Architect, CKA (Certified Kubernetes Administrator), CISSP, CompTIA Security+.
+* Education & Credentials: BS/MS Computer Science, ABET Accredited Engineering Degree.
+* Responsibilities: "Design and implement low-latency microservices", "Maintain 99.99% service uptime SLAs", "Lead architectural refactoring of monolithic legacy codebases".
+* Seniority Indicators: Junior Engineer, Software Engineer II, Staff Engineer, Principal Engineer, VP of Engineering, CTO.
+* Abbreviations & Aliases: K8s (Kubernetes), Postgres (PostgreSQL), TF (Terraform), Golang (Go), JS (JavaScript), TS (TypeScript), CI/CD (Continuous Integration / Continuous Deployment).
+* Easily Confused (Non-Equivalent):
+  - Java vs. JavaScript (completely distinct runtimes and language paradigms).
+  - C vs. C++ vs. C# (systems procedural vs. systems OOP vs. managed .NET runtime).
+  - Docker vs. Kubernetes (container runtime vs. container cluster orchestrator).
+
+3.2 Data Science, Machine Learning, and Analytics
+-------------------------------------------------
+* Competencies: Statistical Modeling, Supervised/Unsupervised Learning, Exploratory Data Analysis (EDA), Feature Engineering, Natural Language Processing (NLP), Computer Vision (CV), Experimentation (A/B Testing), Deep Learning.
+* Tools & Platforms: Python, R, SQL, PyTorch, TensorFlow, Scikit-learn, Pandas, NumPy, Spark, Databricks, Snowflake, BigQuery, dbt, Tableau, Power BI, MLflow.
+* Certifications: AWS Certified Machine Learning Specialty, Databricks Certified Data Engineer Professional, Google Cloud Professional Data Engineer.
+* Education & Credentials: Ph.D. / MS in Statistics, Data Science, Applied Mathematics, Computational Linguistics.
+* Responsibilities: "Develop predictive machine learning models for customer churn", "Design and evaluate multi-arm bandit A/B experiments", "Build scalable feature extraction pipelines in Apache Spark".
+* Seniority Indicators: Data Analyst, Senior Data Scientist, Staff ML Engineer, Head of Data Science, Chief Data Officer (CDO).
+* Abbreviations & Aliases: ML (Machine Learning), DL (Deep Learning), GenAI (Generative AI), LLM (Large Language Model), BI (Business Intelligence), EDA (Exploratory Data Analysis).
+* Easily Confused (Non-Equivalent):
+  - Data Analyst vs. Data Engineer vs. Data Scientist (business reporting/SQL vs. pipeline/distributed systems architecture vs. statistical modeling/ML).
+  - Machine Learning vs. Deep Learning (broad family of algorithms vs. multi-layer neural network subset).
+  - Business Intelligence (BI) vs. Artificial Intelligence (AI) (descriptive historical reporting vs. predictive/generative modeling).
+
+3.3 Human Resources and Talent Acquisition
+------------------------------------------
+* Competencies: Full-Cycle Recruiting, Talent Acquisition, Employee Relations, Compensation & Benefits, Performance Management, Onboarding, Workforce Planning, HR Policy Development, Labor Law Compliance.
+* Tools & Platforms: Workday, Greenhouse, Lever, BambooHR, ADP Workforce Now, SAP SuccessFactors, Taleo, LinkedIn Recruiter.
+* Certifications: SHRM-CP, SHRM-SCP (Society for Human Resource Management), PHR, SPHR (Human Resources Certification Institute).
+* Education & Credentials: Bachelor's in Human Resources, Industrial-Organizational (I-O) Psychology, Business Administration.
+* Responsibilities: "Manage end-to-end full-cycle recruitment for executive technical roles", "Investigate and resolve complex employee relations grievances", "Administer annual compensation benchmarking and merit salary cycles".
+* Seniority Indicators: HR Coordinator, HR Generalist, HR Business Partner (HRBP), Director of People Operations, Chief People Officer (CPO).
+* Abbreviations & Aliases: ATS (Applicant Tracking System), HRIS / HCM (Human Resources Information / Capital Management System), ER (Employee Relations), DE&I (Diversity, Equity, and Inclusion).
+* Easily Confused (Non-Equivalent):
+  - ATS vs. HRIS (pre-hire recruiting software vs. post-hire employee record/payroll platform).
+  - Talent Sourcing vs. Full-Cycle Recruiting (passive candidate identification vs. full requisition ownership through offer closure).
+  - HR Generalist vs. HR Business Partner (HRBP) (tactical operational HR execution vs. strategic executive business alignment).
+
+3.4 Finance, Accounting, and Banking
+------------------------------------
+* Competencies: Financial Accounting, General Ledger, Accounts Payable / Receivable (AP/AR), Bank Reconciliation, Financial Modeling, Budgeting & Forecasting, Variance Analysis, Auditing, Tax Compliance.
+* Tools & Platforms: QuickBooks, SAP ERP, NetSuite, Oracle Financials, Microsoft Excel (Advanced: VLOOKUP, XLOOKUP, Index/Match, Pivot Tables), Bloomberg Terminal, FactSet.
+* Certifications: CPA (Certified Public Accountant), CFA (Chartered Financial Analyst), CMA (Certified Management Accountant), Series 7, Series 63.
+* Education & Credentials: BS/MS in Accounting, Finance, Economics, MBA in Finance.
+* Responsibilities: "Lead month-end and year-end financial close processes", "Prepare quarterly balance sheets and cash flow statements in accordance with GAAP", "Construct discounted cash flow (DCF) valuation models".
+* Seniority Indicators: Staff Accountant, Senior Financial Analyst, Accounting Manager, Controller, VP of Finance, Chief Financial Officer (CFO).
+* Abbreviations & Aliases: GAAP (Generally Accepted Accounting Principles), IFRS (International Financial Reporting Standards), P&L (Profit and Loss), FP&A (Financial Planning and Analysis), DCF (Discounted Cash Flow), GL (General Ledger).
+* Easily Confused (Non-Equivalent):
+  - Financial Accounting vs. Financial Planning & Analysis (FP&A) (historical financial reporting and compliance vs. forward-looking budgeting and projections).
+  - GAAP vs. IFRS (US accounting standards vs. international accounting standards; distinct rules for inventory and asset revaluation).
+  - Bookkeeper vs. CPA (clerical transaction recording vs. licensed statutory auditing and tax advisory).
+
+3.5 Sales, Marketing, and Business Development
+----------------------------------------------
+* Competencies: Inbound/Outbound Lead Generation, Cold Calling, Pipeline Management, Account Management, Search Engine Optimization (SEO), Search Engine Marketing (SEM), Content Strategy, Product Marketing, Brand Management.
+* Tools & Platforms: Salesforce (SFDC), HubSpot, Marketo, Google Analytics (GA4), Outreach, SalesLoft, Mailchimp, SEMrush, Ahrefs.
+* Certifications: HubSpot Inbound Marketing Certification, Google Ads Certification, Salesforce Certified Administrator.
+* Education & Credentials: BA/BS in Marketing, Communications, Business Administration.
+* Responsibilities: "Exceeded quarterly sales quota by 140% generating $1.8M ARR", "Manage a qualified sales pipeline of enterprise B2B prospects", "Execute paid multi-channel user acquisition campaigns across Google and Meta Ads".
+* Seniority Indicators: SDR/BDR (Sales/Business Development Rep), Account Executive (AE), Enterprise AE, VP of Sales, Chief Commercial Officer (CCO), CMO.
+* Abbreviations & Aliases: CRM (Customer Relationship Management), ARR/MRR (Annual/Monthly Recurring Revenue), CAC (Customer Acquisition Cost), LTV (Lifetime Value), MQL/SQL (Marketing/Sales Qualified Lead).
+* Easily Confused (Non-Equivalent):
+  - SDR (Sales Development Rep) vs. AE (Account Executive) (outbound lead prospecting and qualification vs. closing deals and executing contracts).
+  - SEO vs. SEM (organic search ranking optimization vs. paid search engine advertising).
+  - B2B Sales vs. B2C Sales (long, multi-stakeholder enterprise procurement vs. transactional direct-to-consumer sales).
+
+3.6 Operations, Supply Chain, and Logistics
+-------------------------------------------
+* Competencies: Inventory Management, Demand Forecasting, Procurement & Sourcing, Vendor Management, Warehouse Management, Freight & Logistics, Order Fulfillment, Lean Six Sigma.
+* Tools & Platforms: SAP SCM, Oracle NetSuite, Manhattan Associates WMS, Blue Yonder, Tableau, Microsoft Excel.
+* Certifications: CSCP (Certified Supply Chain Professional - ASCM/APICS), CPIM (Certified in Planning and Inventory Management), Six Sigma Green/Black Belt.
+* Education & Credentials: BS in Supply Chain Management, Industrial Engineering, Operations Research.
+* Responsibilities: "Optimize freight routes reducing carrier shipping expenses by 12%", "Manage supplier vendor negotiations for raw material procurement", "Maintain inventory accuracy across 3 regional distribution fulfillment centers".
+* Seniority Indicators: Logistics Coordinator, Supply Chain Analyst, Procurement Specialist, Director of Global Supply Chain, Chief Operating Officer (COO).
+* Abbreviations & Aliases: SCM (Supply Chain Management), WMS (Warehouse Management System), TMS (Transportation Management System), BOM (Bill of Materials), 3PL (Third-Party Logistics), JIT (Just-In-Time).
+* Easily Confused (Non-Equivalent):
+  - Procurement vs. Logistics (sourcing and purchasing materials vs. physical storage, handling, and transportation).
+  - Inbound Logistics vs. Outbound Logistics (receiving supplier parts into facilities vs. distributing finished goods to clients).
+  - Freight Forwarder vs. 3PL (intermediary booking transport vs. outsourced full-service warehousing and fulfillment provider).
+
+3.7 Healthcare and Life Sciences
+--------------------------------
+* Competencies: Clinical Care, Patient Assessment, Electronic Health Records (EHR) Documentation, Triage, Pharmacology Administration, HIPAA Compliance, Medical Billing & Coding, Phlebotomy.
+* Tools & Platforms: Epic Systems, Cerner (Oracle Health), Meditech, Allscripts, Athenahealth.
+* Certifications & Licenses: RN (Registered Nurse), BSN (Bachelor of Science in Nursing), BLS (Basic Life Support), ACLS (Advanced Cardiac Life Support), CPC (Certified Professional Coder).
+* Education & Credentials: BSN, MSN, MD, DO, PharmD, State Nursing License (Mandatory).
+* Responsibilities: "Administered intravenous medications in a 24-bed acute intensive care unit (ICU)", "Maintained 100% compliance with HIPAA confidentiality standards", "Documented patient vital signs and clinical assessments in Epic EHR".
+* Seniority Indicators: Staff Nurse, Charge Nurse, Nurse Practitioner (NP), Clinical Nurse Specialist, Director of Nursing (DON), Chief Medical Officer (CMO).
+* Abbreviations & Aliases: EHR/EMR (Electronic Health / Medical Record), HIPAA (Health Insurance Portability and Accountability Act), ICU (Intensive Care Unit), vitals (vital signs).
+* Easily Confused (Non-Equivalent):
+  - RN (Registered Nurse) vs. LPN (Licensed Practical Nurse) vs. NP (Nurse Practitioner) (independent acute clinical scope vs. supervised basic care vs. advanced practice nurse licensed to prescribe medications).
+  - EHR (Electronic Health Record) vs. EMR (Electronic Medical Record) (interoperable cross-provider digital medical history vs. intra-clinic chart).
+  - Medical Billing vs. Medical Coding (submitting claims and collecting payments from insurers vs. translating clinical notes into ICD-10/CPT codes).
+
+3.8 Project Management and Business Analysis
+--------------------------------------------
+* Competencies: Project Lifecycle Management, Agile / Scrum Methodology, Sprint Planning, Scope Management, Risk Mitigation, Stakeholder Management, Requirements Gathering, Business Process Modeling (BPMN), User Stories.
+* Tools & Platforms: Jira, Confluence, Asana, Trello, Monday.com, Smartsheet, Microsoft Project, Lucidchart, Miro.
+* Certifications: PMP (Project Management Professional), CAPM, CSM (Certified ScrumMaster), PSM I, PMI-ACP, CBAP (Certified Business Analysis Professional).
+* Education & Credentials: BA/BS in Business Management, Information Systems, MBA.
+* Responsibilities: "Facilitated daily standups, backlog grooming, and sprint retrospectives for 3 cross-functional scrum teams", "Authored comprehensive Business Requirements Documents (BRD) and functional specifications", "Delivered $2M enterprise software migration on time and 5% under budget".
+* Seniority Indicators: Associate PM, Scrum Master, Project Manager, Senior Technical Project Manager (TPM), Program Manager, Director of PMO.
+* Abbreviations & Aliases: PMP (Project Management Professional), PMO (Project Management Office), BRD (Business Requirements Document), PRD (Product Requirements Document), WBS (Work Breakdown Structure), KPI (Key Performance Indicator).
+* Easily Confused (Non-Equivalent):
+  - Project Manager vs. Product Manager (executing project scope, schedule, and budget vs. defining product strategy, vision, and feature roadmap).
+  - Project Coordinator vs. Project Manager (administrative meeting scheduling and documentation assistance vs. accountable decision-maker managing budget, scope, and delivery).
+  - Scrum Master vs. Project Manager (servant-leader agile team coach enforcing scrum principles vs. delivery manager accountable to executive stakeholders for deadlines).
+
+3.9 Manufacturing and Quality
+-----------------------------
+* Competencies: Quality Assurance (QA), Quality Control (QC), Statistical Process Control (SPC), Root Cause Analysis (RCA), CAPA, Failure Mode and Effects Analysis (FMEA), Lean Manufacturing, ISO 9001 Auditing.
+* Tools & Platforms: Minitab, AutoCAD, SolidWorks, Siemens NX, MasterControl (eQMS), TrackWise.
+* Certifications: ASQ Certified Quality Engineer (CQE), ASQ Six Sigma Black Belt (CSSBB), ISO 9001 Lead Auditor.
+* Education & Credentials: BS in Mechanical, Electrical, Manufacturing, or Industrial Engineering.
+* Responsibilities: "Conducted Root Cause Analysis (RCA) and implemented CAPA for assembly line defects", "Managed plant-wide internal audits ensuring strict compliance with ISO 9001 standards", "Reduced manufacturing cycle defect rate by 18% utilizing Statistical Process Control (SPC)".
+* Seniority Indicators: Quality Inspector, Quality Engineer, Manufacturing Engineer, Plant Manager, VP of Quality & Manufacturing.
+* Abbreviations & Aliases: QA/QC (Quality Assurance / Quality Control), CAPA (Corrective and Preventive Action), FMEA (Failure Mode and Effects Analysis), SOP (Standard Operating Procedure), GD&T (Geometric Dimensioning and Tolerancing).
+* Easily Confused (Non-Equivalent):
+  - Quality Assurance (QA) vs. Quality Control (QC) (process-oriented defect prevention vs. product-oriented defect detection/testing).
+  - ISO 9001 vs. ISO 13485 vs. AS9100 (general quality management vs. medical device manufacturing standard vs. aerospace manufacturing standard).
+  - Safety Data Sheet (SDS) vs. Standard Operating Procedure (SOP) (hazardous material handling disclosure vs. step-by-step operational instructions).
+
+3.10 Customer Support and Customer Success
+------------------------------------------
+* Competencies: Customer Relationship Management, Ticket Resolution, Technical Troubleshooting, Omnichannel Support (Email, Live Chat, Phone), Customer Onboarding, Churn Prevention, Escalation Management, SLA Adherence.
+* Tools & Platforms: Zendesk, Freshdesk, Salesforce Service Cloud, Intercom, Gainsight, ChurnZero, JIRA Service Management.
+* Certifications: Zendesk Certified Support Administrator, ITIL Foundation, Certified Customer Success Manager (CCSM).
+* Education & Credentials: BA/BS in Communications, Business, Psychology, or technical discipline.
+* Responsibilities: "Resolved an average of 45 technical tier-2 customer support tickets daily maintaining 98% CSAT", "Managed client onboarding for 15 mid-market accounts driving 110% net revenue retention", "Authored 30+ internal troubleshooting SOPs for the knowledge base".
+* Seniority Indicators: Customer Support Representative, Tier 2 Technical Support Specialist, Customer Success Manager (CSM), Enterprise CSM, VP of Customer Experience.
+* Abbreviations & Aliases: CSAT (Customer Satisfaction Score), NPS (Net Promoter Score), SLA (Service Level Agreement), CSM (Customer Success Manager), FCR (First Contact Resolution).
+* Easily Confused (Non-Equivalent):
+  - Customer Support vs. Customer Success (reactive ticket troubleshooting and inquiry resolution vs. proactive relationship management driving product adoption, retention, and upsell).
+  - Tier 1 Support vs. Tier 3 Support (basic triage and password resets vs. deep engineering code-level defect debugging).
+  - CSAT vs. NPS (single-interaction satisfaction measurement vs. long-term brand loyalty recommendation likelihood).
+
+
+================================================================================
+4. PROPOSED TAXONOMY AND RELATIONSHIP RULES
+================================================================================
+
+4.1 Relationship Definitions & Policy Matrix
+--------------------------------------------
+1. EXACT_ALIAS (Weight: 1.0)
+   - Definition: Orthographic, punctuation, or commercial naming variations of identical entities.
+   - Required Skill Veto Policy: Satisfies requirement (no veto).
+   - Examples: PostgreSQL <-> Postgres; ReactJS <-> React; Scikit-learn <-> sklearn.
+
+2. ABBREVIATION (Weight: 1.0)
+   - Definition: Standard industry acronym and its verbatim expansion.
+   - Required Skill Veto Policy: Satisfies requirement (no veto).
+   - Examples: AWS <-> Amazon Web Services; GAAP <-> Generally Accepted Accounting Principles; ATS <-> Applicant Tracking System.
+
+3. CLOSE_EQUIVALENT (Weight: 0.80 - 0.90)
+   - Definition: Competing products or platforms with identical conceptual paradigms and near-zero transition friction.
+   - Required Skill Veto Policy: Does NOT clear hard veto by default without explicit JD rule.
+   - Examples: GCP <-> AWS; Tableau <-> Power BI; HubSpot CRM <-> Salesforce; Jira <-> Asana.
+
+4. RELATED (Weight: 0.20 - 0.30)
+   - Definition: Technologies or skills operating in the same domain but with distinct architectures, syntaxes, or roles.
+   - Required Skill Veto Policy: Does NOT clear veto. Awards soft partial credit only.
+   - Examples: Docker <-> Kubernetes; Python <-> R; SQL <-> NoSQL; Medical Billing <-> Medical Coding.
+
+5. BROADER_NARROWER (Weight: 0.50 - 0.70 Directional)
+   - Definition: A parent discipline and its specialized sub-field (hierarchical taxonomy).
+   - Required Skill Veto Policy: Narrower candidate satisfies broader JD; broader candidate does NOT satisfy narrower JD.
+   - Examples: Narrower -> Broader: Deep Learning satisfies Machine Learning. Broader -> Narrower: Machine Learning does NOT satisfy Deep Learning.
+
+6. AMBIGUOUS (Weight: 0.0 Unresolved)
+   - Definition: Homonyms, shared acronyms, or terms whose meaning depends strictly on sentence or job context.
+   - Required Skill Veto Policy: Must be disambiguated by section or sibling skills before scoring.
+   - Examples: CPR (Cardiopulmonary Resuscitation in Healthcare vs. CPR in Real Estate); PCA (Principal Component Analysis in Data vs. Patient Care Assistant in Healthcare).
+
+7. CREDENTIAL_RELATION (Separate Dimension)
+   - Definition: Formal license or certification associated with a domain competency.
+   - Required Skill Veto Policy: Holding credential does not prove hands-on tool skill; tool skill does not waive statutory license.
+   - Examples: CPA <-> Financial Reporting; RN License <-> Patient Triage; PMP <-> Project Scheduling.
+
+4.2 Mandatory Technical & Domain Distinctions
+---------------------------------------------
+1. SQL vs. NoSQL:
+   - Taxonomy: RELATED (Shared parent: Databases).
+   - Rationale: Relational SQL engines (PostgreSQL, MySQL, Oracle) enforce ACID transactions, fixed tabular schemas, and relational integrity via foreign keys. NoSQL engines (MongoDB, Cassandra, DynamoDB) prioritize horizontal partition scalability, eventual consistency, and document/key-value storage. A senior relational DBA cannot be assumed to possess distributed Cassandra tuning skills.
+   - Scoring Policy: MongoDB applying to a PostgreSQL JD receives 0.25 partial database credit, but flags Missing required skill: PostgreSQL.
+
+2. Machine Learning vs. Deep Learning:
+   - Taxonomy: BROADER_NARROWER (Parent: Machine Learning, Child: Deep Learning).
+   - Rationale: Deep learning is an advanced subset of machine learning.
+   - Policy: Scenario A (JD requires ML; Candidate has Deep Learning): Valid. Score credit: 0.90. Scenario B (JD requires Deep Learning [PyTorch, Transformers]; Candidate has traditional ML [Scikit-learn, Random Forests]): Deficit. Score credit: 0.40 (Hard veto preserved).
+
+3. AI vs. Generative AI:
+   - Taxonomy: BROADER_NARROWER (Parent: Artificial Intelligence, Child: Generative AI).
+   - Rationale: AI is an umbrella term covering classical heuristics, rule-based systems, and traditional predictive models. Generative AI specifically entails autoregressive foundational models, prompt engineering, fine-tuning (LoRA), RAG pipelines, and diffusion models. General "AI familiarity" does not qualify a candidate to deploy LLM inference infrastructure.
+
+4. Docker vs. Kubernetes:
+   - Taxonomy: RELATED (Shared domain: Containerization & Cloud Infrastructure).
+   - Rationale: Docker is a container packaging runtime executing on a single operating system host. Kubernetes is a distributed cluster orchestration platform managing service discovery, ingress routing, auto-scaling, pod lifecycle, and persistent volumes across hundreds of nodes. Containerizing an application via a Dockerfile does not demonstrate cluster administration competency.
+   - Policy: Docker earns 0.30 related container credit against Kubernetes, but cannot satisfy missing_required: Kubernetes.
+
+5. HRIS vs. ATS:
+   - Taxonomy: RELATED (Shared domain: HR Technology).
+   - Rationale: An ATS (Greenhouse, Lever) manages candidate application stages, resume parsing, interview scheduling, and offer letters (pre-hire). An HRIS (Workday, ADP) manages employee payroll, benefits, organizational hierarchy, PTO tracking, and compliance filings (post-hire). Operating an ATS does not qualify an HR coordinator to manage multi-state payroll deductions.
+
+6. Financial Reporting vs. Financial Forecasting:
+   - Taxonomy: RELATED (Shared parent: Corporate Finance).
+   - Rationale: Financial reporting is backward-looking, governance-focused, and governed by strict legal standards (GAAP, IFRS, SEC filings) to record actual accounting results. Financial forecasting (FP&A) is forward-looking, probabilistic, and modeling-focused, simulating future revenue scenarios based on market assumptions.
+
+7. Project Coordination vs. Project Management:
+   - Taxonomy: BROADER_NARROWER / SENIORITY_GRADIENT.
+   - Rationale: Project coordinators manage administrative scheduling, meeting agendas, minutes, and document collation under supervision. Project managers own end-to-end accountability for project budgets, critical path scheduling, scope negotiation, resource allocation, and executive escalation. Treating them as identical produces severe underqualification false positives.
+
+8. Professional Certification vs. Practical Proficiency:
+   - Taxonomy: CREDENTIAL_RELATION.
+   - Rationale: A software engineer with 8 years of production AWS architecture experience may not hold the AWS Solutions Architect certificate, yet should receive full credit for cloud architecture. In regulated industries (Healthcare, Accounting, Legal), a candidate with 10 years of nursing assistance experience cannot practice as a Registered Nurse without an active state RN License. Here, the credential is a non-negotiable statutory knockout.
+
+
+================================================================================
+5. CRITICAL FALSE-POSITIVE AND FALSE-NEGATIVE RISKS
+================================================================================
+
+5.1 High-Impact False-Positive Risks
+------------------------------------
+1. Substring & Word Boundary Collisions: Java appearing as a substring inside JavaScript. Boundary regex (?<!\w)Java(?!\w) in skills_parser.py prevents raw regex overlap, but semantic embedding layers frequently place Java and JavaScript close (cosine similarity ~0.78) due to shared programming contexts.
+2. Unanchored Embedding Similarity Drift: In pure vector-space matching, generic tools in the same job family often produce high cosine similarities (e.g., Excel and Python in data science; R and SQL). Without exact-match gates, a candidate proficient in Excel could erroneously satisfy a Python programming requirement.
+3. Statutory & Regulatory Licensure Overrides: If a semantic matcher equates Medical Assistant with Physician Assistant because both work in clinic settings, the platform would recommend an unlicensed candidate for a role requiring medical prescription authority, creating severe liability.
+4. Soft-Skill & Verb Extraction Noise: Extracting capitalized narrative verbs (Lead, Analyze, Execute, Drive, Support) as technical skills artificially inflates candidate match percentages while ignoring true core competencies.
+
+5.2 High-Impact False-Negative Risks
+------------------------------------
+1. Acronym & Abbreviation Disconnect: A candidate writing K8s rejected against a JD requiring Kubernetes. A nurse writing BLS, ACLS rejected against a hospital JD requiring Basic Life Support. An accountant listing GAAP rejected against a JD requiring Generally Accepted Accounting Principles.
+2. Delimiter & Compound Term Fragmentation: Technical concepts containing slashes or conjunctions (TCP/IP, ETL/ELT, P&L, AP/AR, Research and Development) being fractured into individual meaningless fragments (AP, AR) when parsed by generic delimiter splitters.
+3. Resume Unknown Skill Discard: Candidates in HR, Healthcare, Finance, or Logistics currently have 100% of their specialized tools (Cerner, NetSuite, WMS, Epic) diverted into unknown_skills and omitted from matching.
+
+
+================================================================================
+6. MISSING REQUIREMENT CATEGORIES BEYOND ORDINARY SKILLS
+================================================================================
+
+1. Obligation Context (Required vs. Preferred): Phase 5 established required (2.0x) vs. optional (1.0x) scoring in scorer.py. However, this must be extended beyond skills to education, years of experience, and certifications.
+2. Tenure Specifications (Minimum vs. Preferred YOE): Real JDs frequently specify: "Minimum 3 years of experience required; 5+ years preferred." Flattening this to 36 or 60 months either unfairly penalizes qualified candidates or fails to reward exceptional candidates.
+3. Domain & Industry Track: 5 years of software engineering in high-frequency trading (HFT) requires ultra-low-latency C++ knowledge that cannot be substituted by 5 years of C++ in embedded automotive systems. Domain context must qualify the skill.
+4. Statutory Credentials & State Licenses: In healthcare, accounting, law, and civil engineering, licenses (RN, CPA, PE, Bar Admission) are binary prerequisites. A candidate lacking a required license must receive an immediate knockout veto regardless of skill match.
+5. Educational Pedigree & Minimum Degree Level: The platform extracts degrees in education_parser.py, but does not verify whether the candidate meets the minimum required level (e.g. Master's degree required for a Data Science Research Scientist).
+6. Responsibilities & Outcome Verifications: Senior roles require demonstrated achievements: "Scaled engineering team from 5 to 30", "Managed $10M annual marketing spend at < $25 CAC". Flat skill matching cannot evaluate scope or performance.
+7. Seniority & Organizational Scope: Headcount responsibility, direct reports, P&L ownership, and cross-functional governance must be distinguished from individual contributor task execution.
+8. Tool Familiarity vs. Conceptual Architecture: Knowing how to call a REST API vs. knowing how to design and architect distributed, resilient API infrastructure.
+9. Mandatory Statutory Conditions (Knockout Criteria): Security clearance (TS/SCI), legal work authorization without sponsorship, physical requirements (ability to lift 50 lbs in warehousing), or active driver's license.
+
+
+================================================================================
+7. PRIORITIZED COVERAGE GAPS WITH FILE-LEVEL EVIDENCE
+================================================================================
+
+- Gap 1 (All Non-Tech):
+  * Term/Requirement: Non-tech resume skills (e.g., Workday, GAAP, Epic)
+  * Current Behavior: Extracted into unknown_skills in skills_parser.py (line 372); omitted from resume_data["skills"] in resume_service.py (line 91).
+  * Failure Mode: Missed Match / 100% Score Deficit on valid non-tech candidates.
+  * Priority: P0
+  * Remedy: Architectural bridging: allow validated open-vocabulary skills into matching pipeline.
+  * Evidence: Code paths in resume_service.py and matching_service.py show explicit exclusion.
+
+- Gap 2 (All Domains):
+  * Term/Requirement: Common acronyms (K8s, AWS, P&L, ATS, EHR)
+  * Current Behavior: Exact string check in skill_matcher.py (line 10) fails unless manually hardcoded in normalization_configs.py (line 1).
+  * Failure Mode: Missed Match when candidate uses abbreviation and JD uses full title (or vice versa).
+  * Priority: P0
+  * Remedy: Introduce bidirectional abbreviation expansion dictionary.
+  * Evidence: SKILL_ALIASES has only 5 tech mappings.
+
+- Gap 3 (Healthcare):
+  * Term/Requirement: Mandatory Clinical Licenses (RN, NP, BLS, ACLS)
+  * Current Behavior: CERTIFICATIONS section discarded per issues_resume.md:R-015. No schema field.
+  * Failure Mode: Unsupported Requirement / Liability Risk (recommending unlicensed candidates).
+  * Priority: P1
+  * Remedy: Add dedicated credentials extractor and validation gate.
+  * Evidence: Parser skips certification headers; match_result.py has no credential field.
+
+- Gap 4 (Finance):
+  * Term/Requirement: Multi-word financial standards (Generally Accepted Accounting Principles, Financial Planning and Analysis)
+  * Current Behavior: If hyphenated or phrased with "and", split into fragments by skills_parser.py (line 111).
+  * Failure Mode: Extraction Failure / Token Corruption.
+  * Priority: P1
+  * Remedy: Register multi-word compound finance phrases in protected taxonomy.
+  * Evidence: Only 11 tech compound concepts protected in skill_configs.py (lines 76-88).
+
+- Gap 5 (All Non-Tech):
+  * Term/Requirement: Non-tech job roles (Accountant, HR Manager, Financial Analyst, Registered Nurse)
+  * Current Behavior: Not present in matching_roles.py:CANONICAL_ROLES.
+  * Failure Mode: Uncertain Role Matching (forces status = "unknown", fallback 50.0 points).
+  * Priority: P1
+  * Remedy: Multi-domain role registry with industry-specific role trees.
+  * Evidence: CANONICAL_ROLES strictly contains 4 tech roles.
+
+- Gap 6 (Higher Ed / Regulated):
+  * Term/Requirement: Non-engineering degrees (MBA, MD, BSN, JD, CPA, BBA)
+  * Current Behavior: Unmapped in normalization_configs.py:DEGREE_ALIASES.
+  * Failure Mode: Normalization Failure (degree falls back to raw string, preventing level comparison).
+  * Priority: P2
+  * Remedy: Expand degree aliases with international and cross-industry degrees.
+  * Evidence: Only B.Tech, B.E., M.Tech, M.Sc. configured.
+
+- Gap 7 (Manufacturing):
+  * Term/Requirement: Standards & Compliance Codes (ISO 9001, AS9100, IATF 16949)
+  * Current Behavior: Extracted as fragmented numbers or tokens.
+  * Failure Mode: Missed Match / Noisy Extraction.
+  * Priority: P2
+  * Remedy: Add regex pattern support for industrial alphanumeric standards.
+  * Evidence: _extract_unknown_skill_matches in jd_parser.py strips digits unless capitalized prefix.
+
+
+================================================================================
+8. RECOMMENDED PHASE 6 ARCHITECTURE AND TRADE-OFFS
+================================================================================
+
+8.1 Limits of Hardcoded Monoliths
+---------------------------------
+English business and technical vocabulary spans hundreds of thousands of specialized terms, tools, certifications, and variants. Hardcoding every skill in Python sets creates an unmaintainable codebase prone to human error, spelling regressions, and immediate staleness. However, relying entirely on unconstrained ML embeddings introduces dangerous false positives (e.g. confusing Java and JavaScript, or conflating distinct nursing licenses).
+
+8.2 Recommended 4-Tier Hybrid Architecture
+------------------------------------------
+- Tier 1: Deterministic Core
+  * Exact Match & Canonical Alias Normalization (Confidence: 1.0).
+  * Fast string lookup; covers 70-80% of standard mentions.
+- Tier 2: Domain Taxonomy Packs (Namespaced)
+  * Pluggable JSON/YAML configurations by industry (Tech, Finance, Health, HR).
+  * Bidirectional abbreviations (AWS <-> Amazon Web Services, CPA <-> Certified Public Accountant).
+  * Protects compound phrases from delimiter fragmentation.
+- Tier 3: Dense Semantic Embeddings & Calibrated Gates
+  * Local, lightweight Sentence-Transformers (e.g. all-MiniLM-L6-v2) or ONNX runtime.
+  * Evaluates unmapped terms against JD requirements.
+  * Cosine similarity threshold dynamically gated by relationship taxonomy.
+- Tier 4: Contextual Requirement & Audit Layer
+  * Distinguishes tools vs. licenses vs. responsibilities.
+  * Enforces hard requirement vetoes (semantic similarity cannot bypass veto).
+  * Surfaces complete transparent explainability trail to human recruiters.
+
+8.3 Pitfall of Universal Thresholds (e.g. 0.82)
+-----------------------------------------------
+A similarity threshold cannot be treated as a universal physical constant.
+In embedding spaces (such as all-MiniLM-L6-v2), cosine similarity distributions vary drastically by entity type:
+- Short acronyms vs. expansions (AWS vs. Amazon Web Services): Often score between 0.88 and 0.95.
+- Competing products (AWS vs. GCP, Tableau vs. Power BI): Frequently score between 0.78 and 0.85 (high risk of false positive equivalence if threshold is set at 0.80).
+- Sentence-level project bullets vs. JD responsibilities: Typically score between 0.65 and 0.78 due to varied prose structure.
+Policy Decision: Thresholds must be calibrated per relationship category against an empirical labeled evaluation set, with strict exclusion rules for related-but-non-equivalent entities.
+
+
+================================================================================
+9. PROPOSED CROSS-INDUSTRY EVALUATION DATASET (60 CURATED PAIRS)
+================================================================================
+
+[#] | Job Family | Resume Term / Evidence | JD Requirement | Expected Relationship Label | Short Rationale | Confidence | Human Review Req
+1 | Software & IT | Kubernetes | K8s | ABBREVIATION | Universal numeric contraction for Kubernetes. | High | No
+2 | Software & IT | Postgres | PostgreSQL | EXACT_ALIAS | Standard informal truncation of PostgreSQL. | High | No
+3 | Software & IT | Docker | Kubernetes | RELATED | Container runtime vs cluster orchestrator; not equivalent. | High | No
+4 | Software & IT | Java | JavaScript | RELATED | Entirely different languages; must never match. | High | No
+5 | Software & IT | ReactJS | React | EXACT_ALIAS | Common suffix variant. | High | No
+6 | Software & IT | FastAPI | Flask | CLOSE_EQUIVALENT | Modern Python asynchronous microframework vs WSGI microframework. | Medium | Yes
+7 | Data & ML | AWS | Amazon Web Services | ABBREVIATION | Direct brand abbreviation. | High | No
+8 | Data & ML | Deep Learning | Machine Learning | BROADER_NARROWER | DL is a subset; satisfies broader ML requirement. | High | No
+9 | Data & ML | Machine Learning | Deep Learning | BROADER_NARROWER | ML does NOT satisfy specialized Deep Learning requirement. | High | No
+10 | Data & ML | scikit-learn | sklearn | EXACT_ALIAS | Canonical Python package name vs module import name. | High | No
+11 | Data & ML | Tableau | Power BI | CLOSE_EQUIVALENT | Leading commercial enterprise BI visualization tools. | Medium | Yes
+12 | Data & ML | Python | R | RELATED | Both used in data science, but distinct languages and ecosystems. | High | No
+13 | Data & ML | Generative AI | Artificial Intelligence | BROADER_NARROWER | GenAI satisfies broader AI requirement. | High | No
+14 | Data & ML | SQL | NoSQL | RELATED | Relational vs non-relational; distinct architectures. | High | No
+15 | HR & Recruiting | ATS | Applicant Tracking System | ABBREVIATION | Direct industry acronym. | High | No
+16 | HR & Recruiting | Greenhouse | Lever | CLOSE_EQUIVALENT | Competing enterprise applicant tracking systems. | Medium | Yes
+17 | HR & Recruiting | Workday | Applicant Tracking System | RELATED | Workday is an enterprise HRIS; has ATS module, but not purely an ATS. | Medium | Yes
+18 | HR & Recruiting | SHRM-CP | Employee Relations | CREDENTIAL_RELATION | Professional certification indicating HR competency. | High | No
+19 | HR & Recruiting | Talent Sourcing | Full-Cycle Recruiting | RELATED | Sourcing is top-of-funnel; does not cover full offer execution. | High | No
+20 | HR & Recruiting | HRIS | Human Resources Information System | ABBREVIATION | Verbatim expansion. | High | No
+21 | Finance & Accounting | GAAP | Generally Accepted Accounting Principles | ABBREVIATION | Standard statutory US accounting standard. | High | No
+22 | Finance & Accounting | IFRS | GAAP | RELATED | International vs US accounting rules; distinct standards. | High | No
+23 | Finance & Accounting | CPA | Financial Reporting | CREDENTIAL_RELATION | Certified Public Accountant license implies reporting capability. | High | No
+24 | Finance & Accounting | QuickBooks | NetSuite | RELATED | Small business bookkeeping vs enterprise ERP; vast scale gap. | High | No
+25 | Finance & Accounting | Financial Forecasting | Financial Reporting | RELATED | Forward-looking budgeting vs backward-looking accounting. | High | No
+26 | Finance & Accounting | General Ledger | GL | ABBREVIATION | Common core accounting abbreviation. | High | No
+27 | Sales & Marketing | Salesforce | SFDC | ABBREVIATION | Salesforce Dot Com standard industry abbreviation. | High | No
+28 | Sales & Marketing | HubSpot CRM | Salesforce | CLOSE_EQUIVALENT | Leading competing CRM platforms for pipeline management. | Medium | Yes
+29 | Sales & Marketing | SEO | Search Engine Optimization | ABBREVIATION | Standard organic search marketing acronym. | High | No
+30 | Sales & Marketing | SEO | SEM | RELATED | Organic ranking vs paid search advertising; distinct disciplines. | High | No
+31 | Sales & Marketing | SDR | Account Executive | RELATED | Prospecting vs closing; different quota and job responsibilities. | High | No
+32 | Sales & Marketing | Inbound Marketing | Lead Generation | BROADER_NARROWER | Inbound marketing is a subset of overall lead generation. | High | No
+33 | Supply Chain & Ops | WMS | Warehouse Management System | ABBREVIATION | Core logistics software category. | High | No
+34 | Supply Chain & Ops | Procurement | Logistics | RELATED | Purchasing vs physical freight transport; related but distinct. | High | No
+35 | Supply Chain & Ops | Six Sigma Green Belt | Process Improvement | CREDENTIAL_RELATION | Methodology certification demonstrating process improvement. | High | No
+36 | Supply Chain & Ops | 3PL | Third-Party Logistics | ABBREVIATION | Standard outsourced supply chain partner term. | High | No
+37 | Supply Chain & Ops | SAP SCM | Supply Chain Management | BROADER_NARROWER | Specific enterprise software tool vs general domain competency. | High | No
+38 | Supply Chain & Ops | JIT | Just-In-Time Inventory | ABBREVIATION | Manufacturing lean inventory methodology. | High | No
+39 | Healthcare | EHR | Electronic Health Records | ABBREVIATION | Statutory clinical documentation system. | High | No
+40 | Healthcare | Epic Systems | Cerner | CLOSE_EQUIVALENT | Dominant enterprise hospital EHR software platforms. | High | Yes
+41 | Healthcare | RN | Registered Nurse | ABBREVIATION | Statutory professional nursing title. | High | No
+42 | Healthcare | RN | LPN | RELATED | Registered Nurse vs Licensed Practical Nurse; clinical scope difference. | High | No
+43 | Healthcare | HIPAA | Healthcare Compliance | BROADER_NARROWER | Statutory privacy law within broader healthcare compliance. | High | No
+44 | Healthcare | Medical Billing | Medical Coding | RELATED | Submitting insurance claims vs ICD-10 diagnostic coding. | High | No
+45 | Healthcare | BLS | Basic Life Support | ABBREVIATION | Emergency CPR credential required in hospital settings. | High | No
+46 | Project Management | PMP | Project Management Professional | ABBREVIATION | Globally recognized PMI certification. | High | No
+47 | Project Management | Scrum Master | Project Manager | RELATED | Agile servant-leader vs delivery/budget accountability manager. | High | No
+48 | Project Management | Jira | Asana | CLOSE_EQUIVALENT | Work management and ticket tracking platforms. | Medium | Yes
+49 | Project Management | Project Coordinator | Project Manager | BROADER_NARROWER | Coordinator is junior administrative; cannot substitute for PM. | High | No
+50 | Project Management | Agile | Scrum | BROADER_NARROWER | Agile is overarching philosophy; Scrum is specific operational framework. | High | No
+51 | Project Management | BRD | Business Requirements Document | ABBREVIATION | Core business analysis deliverable. | High | No
+52 | Manufacturing | QA | Quality Assurance | ABBREVIATION | Core manufacturing quality discipline. | High | No
+53 | Manufacturing | QA | QC | RELATED | Prevention process vs inspection testing; distinct functions. | High | No
+54 | Manufacturing | SolidWorks | AutoCAD | CLOSE_EQUIVALENT | 3D mechanical CAD drafting and modeling platforms. | Medium | Yes
+55 | Manufacturing | CAPA | Corrective and Preventive Action | ABBREVIATION | Quality remediation regulatory process. | High | No
+56 | Manufacturing | ISO 9001 | Quality Management System | BROADER_NARROWER | Specific international standard within general QMS. | High | No
+57 | Customer Success | Zendesk | Freshdesk | CLOSE_EQUIVALENT | Competing omnichannel customer ticketing platforms. | High | Yes
+58 | Customer Success | Customer Support | Customer Success | RELATED | Reactive troubleshooting vs proactive retention and adoption. | High | No
+59 | Customer Success | CSAT | Customer Satisfaction Score | ABBREVIATION | Core customer feedback metric. | High | No
+60 | Customer Success | CSAT | NPS | RELATED | Transactional satisfaction metric vs long-term brand loyalty metric. | High | No
+
+
+================================================================================
+10. RECOMMENDED IMPLEMENTATION SEQUENCE
+================================================================================
+
+- Block 6.1: Open-Vocabulary Ingestion Bridge & Delimiter Hardening
+  * Problem: In resume_service.py (line 91), non-tech skills on resumes are diverted to unknown_skills and discarded from matching.
+  * Scope:
+    - Bridge validated unknown_skills into resume_data["skills"] so legitimate non-tech skills reach the matcher.
+    - Add noise filters to prevent conversational prose from entering unknown_skills.
+    - Add regression tests verifying non-tech candidate resumes preserve their tools into match_skills.
+
+- Block 6.2: Modular Cross-Industry Taxonomy Packs
+  * Problem: Hardcoding all skills into skill_configs.py causes file bloat and cross-domain keyword collisions.
+  * Scope:
+    - Refactor static vocabulary into modular domain packs (configs/taxonomies/{tech, finance, healthcare, hr}.json).
+    - Add bidirectional abbreviation mapping (ABBREVIATIONS dictionary: AWS <-> Amazon Web Services, K8s <-> Kubernetes, CPA <-> Certified Public Accountant).
+    - Expand canonical degree aliases (MBA, MD, BSN, BBA) and seniority levels (Director, VP, Manager, Associate).
+
+- Block 6.3: Local Dense Embedding Engine & Calibration Benchmark
+  * Problem: Exact string matching cannot recognize close synonyms or paraphrased skills without exhaustive alias lists.
+  * Scope:
+    - Integrate a lightweight, offline local embedding engine (e.g., sentence-transformers/all-MiniLM-L6-v2 or ONNX runtime).
+    - Implement match_skills_semantic(candidate_skills, jd_skills).
+    - Evaluate cosine similarity against the 60-pair benchmark from Section 9 to determine empirical thresholds for EXACT_ALIAS, CLOSE_EQUIVALENT, and RELATED.
+    - Ensure 100% deterministic fallback when model is unavailable or memory-constrained.
+
+- Block 6.4: Contextual Credential & License Layer
+  * Problem: Statutory licenses (RN, CPA, PE) are treated as flat bonus skills rather than mandatory gating prerequisites.
+  * Scope:
+    - Introduce a dedicated credentials extractor in resume and JD parsing.
+    - Implement a CREDENTIAL_RELATION evaluation rule in scorer.py that enforces mandatory licensing knockouts in regulated job families.
+
+- Block 6.5: Hybrid Compatibility Scorer & Explainability Audit Trail
+  * Problem: Black-box ML scores cannot be audited or trusted by recruiters in regulated hiring.
+  * Scope:
+    - Integrate semantic similarity bonuses into calculate_composite_score() while strictly preserving deterministic vetoes (role mismatch, missing required skill).
+    - Provide human-readable explanation trails distinguishing exact matches, semantic matches, and missing qualifications.
+
+
+================================================================================
+11. OPEN QUESTIONS REQUIRING HUMAN DECISIONS
+================================================================================
+
+1. Job Family Detection Strategy:
+   - Question: Should the active job family (e.g. Healthcare vs. Software vs. Finance) be automatically inferred from JD section text, or explicitly specified via an API parameter / recruiter dropdown?
+   - Trade-off: Automatic detection can misclassify hybrid roles (e.g. Healthcare Data Analyst, FinTech Backend Engineer); explicit parameters require UI inputs.
+
+2. Statutory License Knockout Policy:
+   - Question: Should missing statutory credentials (e.g., lack of active RN License for an Intensive Care Nurse position) result in an immediate composite score of 0.0 (hard knockout), or simply cap the candidate at Underqualified with flags?
+   - Trade-off: Hard knockout prevents illegal hiring recommendations in regulated industries; soft cap allows recruiter discretion for trainees or transfer candidates.
+
+3. Equivalence Weight Policy for Competing Platforms:
+   - Question: In non-regulated roles, how should competing tools be credited (e.g., candidate has Tableau, JD requires Power BI; candidate has GCP, JD requires AWS)?
+   - Recommendation for Review: Should competing tools earn partial credit (e.g. 0.80) or zero credit if marked required?
+
+4. Offline Inference vs. Model Dependencies:
+   - Question: Is adding sentence-transformers (~80MB download + PyTorch/ONNX runtime) acceptable in the production deployment environment, or should the platform support a pure rule/taxonomy mode for resource-constrained environments?
+   - Trade-off: Embedding models add ~15ms CPU inference and ~200MB memory overhead; rule-based taxonomy mode uses < 10MB memory and < 1ms execution, but requires ongoing manual dictionary maintenance.
+
+================================================================================
+END OF AUDIT REPORT
+================================================================================
